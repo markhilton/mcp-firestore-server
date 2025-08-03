@@ -1,0 +1,35 @@
+{
+  "name": "@markhilton/mcp-firestore-server",
+  "version": "1.0.0",
+  "description": "MCP server for Firebase Firestore operations",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "mcp-firestore-server": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "mcp",
+    "firestore",
+    "firebase",
+    "model-context-protocol"
+  ],
+  "author": "Mark Hilton",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.15.1",
+    "firebase-admin": "^13.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/mcp-firestore-server.git"
+  }
+}

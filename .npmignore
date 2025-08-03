@@ -1,0 +1,34 @@
+# Development files
+*.log
+.DS_Store
+.env
+.env.*
+
+# Test files
+test/
+*.test.js
+*.spec.js
+
+# Development dependencies
+node_modules/
+.npm/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git files
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Build files
+dist/
+build/
+coverage/
