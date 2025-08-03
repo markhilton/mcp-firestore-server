@@ -1,6 +1,6 @@
 {
-  "name": "@markhilton/mcp-firestore-server",
-  "version": "1.0.0",
+  "name": "@nerd305/mcp-firestore-server",
+  "version": "1.0.1",
   "description": "MCP server for Firebase Firestore operations",
   "main": "index.js",
   "type": "module",

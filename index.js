@@ -4,6 +4,9 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import admin from "firebase-admin";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
+import { execSync } from "child_process";
 
 // Add process error handlers
 process.on("uncaughtException", error => {
@@ -16,6 +19,63 @@ process.on("unhandledRejection", (reason, promise) => {
   process.exit(1);
 });
 
+// Function to auto-detect Google Cloud Project ID
+function detectProjectId() {
+  // 1. Check environment variables
+  if (process.env.GOOGLE_CLOUD_PROJECT) return process.env.GOOGLE_CLOUD_PROJECT;
+  if (process.env.FIREBASE_PROJECT_ID) return process.env.FIREBASE_PROJECT_ID;
+  if (process.env.GCLOUD_PROJECT) return process.env.GCLOUD_PROJECT;
+  
+  // 2. Try to get from gcloud config
+  try {
+    const gcloudProject = execSync('gcloud config get-value project 2>/dev/null', { encoding: 'utf8' }).trim();
+    if (gcloudProject && gcloudProject !== '') {
+      console.error(`Auto-detected project from gcloud: ${gcloudProject}`);
+      return gcloudProject;
+    }
+  } catch (e) {
+    // gcloud not installed or not configured
+  }
+  
+  // 3. Check for firebase.json in current directory and parent directories
+  let currentDir = process.cwd();
+  for (let i = 0; i < 10; i++) { // Check up to 10 parent directories
+    const firebaseJsonPath = join(currentDir, 'firebase.json');
+    if (existsSync(firebaseJsonPath)) {
+      try {
+        const firebaseConfig = JSON.parse(readFileSync(firebaseJsonPath, 'utf8'));
+        // Check for project in firebase.json
+        if (firebaseConfig.projects?.default) {
+          console.error(`Auto-detected project from firebase.json: ${firebaseConfig.projects.default}`);
+          return firebaseConfig.projects.default;
+        }
+      } catch (e) {
+        // Invalid firebase.json
+      }
+    }
+    
+    // Check for .firebaserc
+    const firebasercPath = join(currentDir, '.firebaserc');
+    if (existsSync(firebasercPath)) {
+      try {
+        const firebaserc = JSON.parse(readFileSync(firebasercPath, 'utf8'));
+        if (firebaserc.projects?.default) {
+          console.error(`Auto-detected project from .firebaserc: ${firebaserc.projects.default}`);
+          return firebaserc.projects.default;
+        }
+      } catch (e) {
+        // Invalid .firebaserc
+      }
+    }
+    
+    const parentDir = join(currentDir, '..');
+    if (parentDir === currentDir) break; // Reached root
+    currentDir = parentDir;
+  }
+  
+  return null;
+}
+
 async function startServer() {
   try {
     console.error("Starting Firestore MCP Server...");
@@ -23,12 +83,17 @@ async function startServer() {
     // Initialize Firebase Admin
     console.error("Initializing Firebase Admin...");
 
-    // Get configuration from environment variables
-    const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID;
+    // Get configuration from environment variables or auto-detect
+    const projectId = detectProjectId();
     const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
 
     if (!projectId) {
-      console.error("Error: GOOGLE_CLOUD_PROJECT or FIREBASE_PROJECT_ID environment variable must be set");
+      console.error("Error: Could not detect Google Cloud Project ID.");
+      console.error("Please set one of the following:");
+      console.error("  - GOOGLE_CLOUD_PROJECT environment variable");
+      console.error("  - FIREBASE_PROJECT_ID environment variable");
+      console.error("  - Configure gcloud: gcloud config set project YOUR_PROJECT_ID");
+      console.error("  - Add a .firebaserc or firebase.json file in your project");
       process.exit(1);
     }
 
