@@ -5,7 +5,7 @@ A Model Context Protocol (MCP) server that provides Firestore database operation
 ## Installation
 
 ```bash
-npx @markhilton/mcp-firestore-server
+npx @nerd305/mcp-firestore-server
 ```
 
 ## Configuration
@@ -24,7 +24,7 @@ Add to your `.mcp.json` configuration:
   "mcpServers": {
     "firestore": {
       "command": "npx",
-      "args": ["-y", "@markhilton/mcp-firestore-server"],
+      "args": ["-y", "@nerd305/mcp-firestore-server"],
       "env": {
         "GOOGLE_CLOUD_PROJECT": "your-project-id",
         "FIRESTORE_EMULATOR_HOST": "127.0.0.1:8080"
@@ -35,12 +35,13 @@ Add to your `.mcp.json` configuration:
 ```
 
 For production Firestore (requires authentication):
+
 ```json
 {
   "mcpServers": {
     "firestore": {
       "command": "npx",
-      "args": ["-y", "@markhilton/mcp-firestore-server"],
+      "args": ["-y", "@nerd305/mcp-firestore-server"],
       "env": {
         "GOOGLE_CLOUD_PROJECT": "your-project-id",
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service-account.json"
@@ -53,6 +54,7 @@ For production Firestore (requires authentication):
 ## Available Tools
 
 ### query_collection
+
 Query documents from a Firestore collection.
 
 ```typescript
@@ -65,6 +67,7 @@ Query documents from a Firestore collection.
 ```
 
 ### get_document
+
 Get a specific document by ID.
 
 ```typescript
@@ -75,6 +78,7 @@ Get a specific document by ID.
 ```
 
 ### query_with_where
+
 Query documents with where conditions.
 
 ```typescript
@@ -88,13 +92,16 @@ Query documents with where conditions.
 ```
 
 ### list_collections
+
 List all top-level collections.
 
 ```typescript
-{}
+{
+}
 ```
 
 ### create_document
+
 Create a new document.
 
 ```typescript
@@ -106,6 +113,7 @@ Create a new document.
 ```
 
 ### update_document
+
 Update an existing document.
 
 ```typescript
@@ -118,6 +126,7 @@ Update an existing document.
 ```
 
 ### delete_document
+
 Delete a document.
 
 ```typescript
@@ -139,7 +148,7 @@ Delete a document.
 cd mcp-firestore-server
 npm link
 # In your project
-npm link @markhilton/mcp-firestore-server
+npm link @nerd305/mcp-firestore-server
 ```
 
 ## License
