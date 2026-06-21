@@ -1,4 +1,5 @@
-import admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import { detectProjectId } from "./config.js";
 import { TARGETS } from "./constants.js";
 
@@ -51,8 +52,8 @@ export function initFirebase() {
   // Initialize emulator target
   if (emulatorHost) {
     process.env.FIRESTORE_EMULATOR_HOST = emulatorHost;
-    const app = admin.initializeApp({ projectId }, TARGETS.EMULATOR);
-    emulatorDb = admin.firestore(app);
+    const app = initializeApp({ projectId }, TARGETS.EMULATOR);
+    emulatorDb = getFirestore(app);
     availableTargets.push(TARGETS.EMULATOR);
     console.error(`[${TARGETS.EMULATOR}] Firestore initialized -> ${emulatorHost}`);
   }
@@ -62,8 +63,8 @@ export function initFirebase() {
     const savedHost = process.env.FIRESTORE_EMULATOR_HOST;
     delete process.env.FIRESTORE_EMULATOR_HOST;
 
-    const app = admin.initializeApp({ projectId }, TARGETS.PRODUCTION);
-    productionDb = admin.firestore(app);
+    const app = initializeApp({ projectId }, TARGETS.PRODUCTION);
+    productionDb = getFirestore(app);
     availableTargets.push(TARGETS.PRODUCTION);
     console.error(`[${TARGETS.PRODUCTION}] Firestore initialized`);
 

@@ -59,7 +59,7 @@ export async function applyPagination(query, db, collection, startAfterId) {
  * Returns { docs, lastDocId } for response building.
  */
 export async function executeQuery(query, limit) {
-  const snapshot = await query.limit(limit || 10).get();
+  const snapshot = await query.limit(parseInt(limit, 10) || 10).get();
 
   const docs = snapshot.docs.map(doc => ({
     id: doc.id,
