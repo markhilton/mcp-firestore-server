@@ -55,9 +55,15 @@ test("applyOrderBy: applies direction", async () => {
       { id: "c", age: 40 },
     ],
   });
-  const q = applyOrderBy(db.collection("users"), { orderBy: "age", orderDirection: "desc" });
+  const q = applyOrderBy(db.collection("users"), {
+    orderBy: "age",
+    orderDirection: "desc",
+  });
   const snap = await q.get();
-  assert.deepEqual(snap.docs.map(d => d.id), ["c", "a", "b"]);
+  assert.deepEqual(
+    snap.docs.map(d => d.id),
+    ["c", "a", "b"],
+  );
 });
 
 test("applyPagination: returns query unchanged when no startAfter", async () => {
@@ -84,7 +90,10 @@ test("applyPagination: starts after an existing doc", async () => {
   const ordered = applyOrderBy(db.collection("users"), { orderBy: "n" });
   const q = await applyPagination(ordered, db, "users", "a");
   const snap = await q.get();
-  assert.deepEqual(snap.docs.map(d => d.id), ["b", "c"]);
+  assert.deepEqual(
+    snap.docs.map(d => d.id),
+    ["b", "c"],
+  );
 });
 
 test("executeQuery: applies default limit of 10 and computes lastDocId", async () => {
@@ -99,8 +108,17 @@ test("executeQuery: applies default limit of 10 and computes lastDocId", async (
 });
 
 test("executeQuery: honors an explicit limit and parses string limits", async () => {
-  const db = makeDb({ items: [{ id: "a", n: 1 }, { id: "b", n: 2 }, { id: "c", n: 3 }] });
-  const { docs } = await executeQuery(applyOrderBy(db.collection("items"), { orderBy: "n" }), "2");
+  const db = makeDb({
+    items: [
+      { id: "a", n: 1 },
+      { id: "b", n: 2 },
+      { id: "c", n: 3 },
+    ],
+  });
+  const { docs } = await executeQuery(
+    applyOrderBy(db.collection("items"), { orderBy: "n" }),
+    "2",
+  );
   assert.equal(docs.length, 2);
 });
 

@@ -4,7 +4,12 @@ import { handler } from "../../src/tools/batch-get.js";
 import { makeDb } from "../fakes/firestore.js";
 
 test("batch_get: fetches multiple docs, marking missing ones", async () => {
-  const db = makeDb({ users: [{ id: "a", name: "Ada" }, { id: "b", name: "Bo" }] });
+  const db = makeDb({
+    users: [
+      { id: "a", name: "Ada" },
+      { id: "b", name: "Bo" },
+    ],
+  });
   const res = await handler({ collection: "users", docIds: ["a", "ghost", "b"] }, db);
 
   assert.equal(res.collection, "users");

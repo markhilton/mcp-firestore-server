@@ -24,7 +24,10 @@ async function testConnection(target) {
   const { db } = getDb(target);
   const testQuery = db.collection("_test_connection").limit(1).get();
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Connection test timed out")), CONNECTION_TEST_TIMEOUT_MS),
+    setTimeout(
+      () => reject(new Error("Connection test timed out")),
+      CONNECTION_TEST_TIMEOUT_MS,
+    ),
   );
   await Promise.race([testQuery, timeout]);
 }
@@ -89,7 +92,7 @@ export async function startServer() {
         }
 
         const { db, target } = getDb(args.target);
-        const result = await handler(args, db);
+        const result = await handler(args, db, target);
 
         return buildResponse({ ...result, target });
       } catch (error) {

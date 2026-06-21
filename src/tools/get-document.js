@@ -1,5 +1,6 @@
 import { COLLECTION_PROPERTY } from "../helpers/schema.js";
 import { mapDocSnapshot } from "../helpers/query.js";
+import { validateCollectionPath } from "../helpers/validate.js";
 
 export const definition = {
   name: "get_document",
@@ -16,6 +17,7 @@ export const definition = {
 };
 
 export async function handler(args, db) {
+  validateCollectionPath(args.collection);
   const doc = await db.collection(args.collection).doc(args.docId).get();
   return mapDocSnapshot(doc);
 }

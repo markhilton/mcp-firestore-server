@@ -70,7 +70,13 @@ class DocumentReference {
     } else {
       store[this.id] = { ...data };
     }
-    this.db.writes.push({ op: "set", path: this.collectionPath, id: this.id, data, options });
+    this.db.writes.push({
+      op: "set",
+      path: this.collectionPath,
+      id: this.id,
+      data,
+      options,
+    });
     return this;
   }
   async update(data) {

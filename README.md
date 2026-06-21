@@ -10,14 +10,19 @@ npx @nerd305/mcp-firestore-server
 
 ## Configuration
 
-| Environment Variable | Purpose | Required? |
-|---------------------|---------|-----------|
-| `GOOGLE_CLOUD_PROJECT` / `FIREBASE_PROJECT_ID` | Project ID | Yes (or auto-detected from gcloud / .firebaserc) |
-| `FIRESTORE_EMULATOR_HOST` | Emulator address (e.g. `127.0.0.1:8080`) | No (enables emulator target) |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Service account key path | No (enables production target) |
-| `MCP_FIRESTORE_DEFAULT_TARGET` | Default target: `"emulator"` or `"production"` | No (auto-resolved) |
+| Environment Variable                           | Purpose                                        | Required?                                        |
+| ---------------------------------------------- | ---------------------------------------------- | ------------------------------------------------ |
+| `GOOGLE_CLOUD_PROJECT` / `FIREBASE_PROJECT_ID` | Project ID                                     | Yes (or auto-detected from gcloud / .firebaserc) |
+| `FIRESTORE_EMULATOR_HOST`                      | Emulator address (e.g. `127.0.0.1:8080`)       | No (enables emulator target)                     |
+| `GOOGLE_APPLICATION_CREDENTIALS`               | Service account key path                       | No (enables production target)                   |
+| `MCP_FIRESTORE_DEFAULT_TARGET`                 | Default target: `"emulator"` or `"production"` | No (auto-resolved)                               |
+| `MCP_FIRESTORE_DEBUG` / `DEBUG`                | Include stack traces in error responses        | No (off by default)                              |
 
 At least one of `FIRESTORE_EMULATOR_HOST` or `GOOGLE_APPLICATION_CREDENTIALS` must be set. When both are configured, the server connects to both endpoints simultaneously and defaults to the emulator.
+
+### Production write safety
+
+Reads run freely against any target. **Writes against the `production` target (`create_document`, `update_document`, `delete_document`) require `confirm: true`** — without it, the tool returns an error and makes no change. Writes against the emulator never need confirmation. This prevents an assistant from mutating live data without a deliberate opt-in.
 
 ## Usage with Claude Desktop
 
@@ -180,6 +185,7 @@ Create a new document.
   collection: string;
   docId?: string;           // Auto-generated if not provided
   data: object;
+  confirm?: boolean;        // Required true to write to production
   target?: "emulator" | "production";
 }
 ```
@@ -194,6 +200,7 @@ Update an existing document.
   docId: string;
   data: object;
   merge?: boolean;          // Default: true
+  confirm?: boolean;        // Required true to write to production
   target?: "emulator" | "production";
 }
 ```
@@ -206,6 +213,7 @@ Delete a document.
 {
   collection: string;
   docId: string;
+  confirm?: boolean;        // Required true to delete from production
   target?: "emulator" | "production";
 }
 ```

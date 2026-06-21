@@ -19,9 +19,16 @@ node_modules/
 *.swp
 *.swo
 
-# Git files
+# Git / CI files
 .git/
 .gitignore
+.github/
+
+# Tooling / lint / format config
+.prettierrc
+.prettierignore
+eslint.config.js
+CLAUDE.md
 
 # Documentation
 docs/

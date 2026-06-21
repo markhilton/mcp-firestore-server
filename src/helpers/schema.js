@@ -10,6 +10,13 @@ export const COLLECTION_PROPERTY = {
   description: "Collection path (e.g. 'users' or 'users/uid/posts' for subcollections)",
 };
 
+export const CONFIRM_PROPERTY = {
+  type: "boolean",
+  default: false,
+  description:
+    "Required `true` to write to the production target. Ignored for the emulator target.",
+};
+
 export const PAGINATION_PROPERTIES = {
   limit: { type: "number", default: 10, description: "Maximum documents to return" },
   orderBy: { type: "string", description: "Field to order by" },
@@ -29,7 +36,7 @@ export const PAGINATION_PROPERTIES = {
 export const WHERE_CLAUSES_PROPERTY = {
   type: "array",
   description:
-    'Array of where clauses: [[field, operator, value], ...]. Values are auto-coerced to numbers, booleans, arrays, etc.',
+    "Array of where clauses: [[field, operator, value], ...]. Values are auto-coerced to numbers, booleans, arrays, etc.",
   items: {
     type: "array",
     items: [

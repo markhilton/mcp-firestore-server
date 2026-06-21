@@ -15,7 +15,10 @@ test("query_collection: returns ordered, limited documents with lastDocId", asyn
 
   assert.equal(res.collection, "posts");
   assert.equal(res.count, 2);
-  assert.deepEqual(res.documents.map(d => d.id), ["p1", "p2"]);
+  assert.deepEqual(
+    res.documents.map(d => d.id),
+    ["p1", "p2"],
+  );
   assert.equal(res.lastDocId, "p2");
 });
 
@@ -31,7 +34,10 @@ test("query_collection: paginates via startAfter", async () => {
     { collection: "posts", orderBy: "rank", startAfter: "p2" },
     db,
   );
-  assert.deepEqual(res.documents.map(d => d.id), ["p3"]);
+  assert.deepEqual(
+    res.documents.map(d => d.id),
+    ["p3"],
+  );
 });
 
 test("query_collection: empty collection omits lastDocId", async () => {

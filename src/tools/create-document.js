@@ -1,4 +1,6 @@
-import { COLLECTION_PROPERTY } from "../helpers/schema.js";
+import { COLLECTION_PROPERTY, CONFIRM_PROPERTY } from "../helpers/schema.js";
+import { assertWriteAllowed } from "../helpers/guards.js";
+import { validateCollectionPath, assertNonEmptyData } from "../helpers/validate.js";
 
 export const definition = {
   name: "create_document",
@@ -17,12 +19,17 @@ export const definition = {
         type: "object",
         description: "Document data as JSON object",
       },
+      confirm: CONFIRM_PROPERTY,
     },
     required: ["collection", "data"],
   },
 };
 
-export async function handler(args, db) {
+export async function handler(args, db, target) {
+  assertWriteAllowed(target, args);
+  validateCollectionPath(args.collection);
+  assertNonEmptyData(args.data);
+
   const collectionRef = db.collection(args.collection);
   let docRef;
 

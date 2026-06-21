@@ -11,6 +11,7 @@ import {
   applyPagination,
   executeQuery,
 } from "../helpers/query.js";
+import { validateCollectionPath } from "../helpers/validate.js";
 
 export const definition = {
   name: "query_with_where",
@@ -43,6 +44,7 @@ export const definition = {
 };
 
 export async function handler(args, db) {
+  validateCollectionPath(args.collection);
   let query = db.collection(args.collection);
   let clauses;
 
@@ -67,7 +69,9 @@ export async function handler(args, db) {
 
   return {
     collection: args.collection,
-    query: clauses.map(c => `${c.field} ${c.operator} ${JSON.stringify(c.value)}`).join(" AND "),
+    query: clauses
+      .map(c => `${c.field} ${c.operator} ${JSON.stringify(c.value)}`)
+      .join(" AND "),
     count: docs.length,
     documents: docs,
     ...(lastDocId && { lastDocId }),

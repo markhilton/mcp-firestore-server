@@ -33,6 +33,7 @@ ESM-only (`"type": "module"`). Pure JavaScript, no build step.
 ### Tool Module Pattern
 
 Each tool in `src/tools/` exports two named exports:
+
 1. `definition` - MCP tool schema (name, description, inputSchema)
 2. `handler(args, db)` - async function receiving parsed args and a Firestore `db` instance, returns a plain object (serialized to JSON by `buildResponse`)
 
@@ -54,11 +55,11 @@ The `target` parameter is injected into every tool's schema automatically by `sr
 
 ## Environment Variables
 
-| Variable | Purpose |
-|---|---|
-| `GOOGLE_CLOUD_PROJECT` / `FIREBASE_PROJECT_ID` | Project ID (or auto-detected) |
-| `FIRESTORE_EMULATOR_HOST` | Emulator address, enables emulator target |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Service account key path, enables production target |
-| `MCP_FIRESTORE_DEFAULT_TARGET` | Override default target (`"emulator"` or `"production"`) |
+| Variable                                       | Purpose                                                  |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| `GOOGLE_CLOUD_PROJECT` / `FIREBASE_PROJECT_ID` | Project ID (or auto-detected)                            |
+| `FIRESTORE_EMULATOR_HOST`                      | Emulator address, enables emulator target                |
+| `GOOGLE_APPLICATION_CREDENTIALS`               | Service account key path, enables production target      |
+| `MCP_FIRESTORE_DEFAULT_TARGET`                 | Override default target (`"emulator"` or `"production"`) |
 
 At least one of `FIRESTORE_EMULATOR_HOST` or `GOOGLE_APPLICATION_CREDENTIALS` must be set.

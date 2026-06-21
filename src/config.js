@@ -16,6 +16,8 @@ export function detectProjectId() {
   try {
     const gcloudProject = execSync("gcloud config get-value project 2>/dev/null", {
       encoding: "utf8",
+      timeout: 3000,
+      stdio: ["ignore", "pipe", "ignore"],
     }).trim();
     if (gcloudProject && gcloudProject !== "") {
       console.error(`Auto-detected project from gcloud: ${gcloudProject}`);

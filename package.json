@@ -1,6 +1,6 @@
 {
   "name": "@nerd305/mcp-firestore-server",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "MCP server for Firebase Firestore operations",
   "main": "index.js",
   "type": "module",
@@ -10,7 +10,9 @@
   "scripts": {
     "start": "node index.js",
     "test": "node --test",
-    "test:watch": "node --test --watch"
+    "test:watch": "node --test --watch",
+    "lint": "prettier --check . && eslint .",
+    "format": "prettier --write ."
   },
   "keywords": [
     "mcp",
@@ -33,5 +35,10 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/markhilton/mcp-firestore-server.git"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.5.0",
+    "prettier": "^3.8.4"
   }
 }

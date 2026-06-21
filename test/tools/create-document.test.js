@@ -2,10 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { handler } from "../../src/tools/create-document.js";
 import { makeDb } from "../fakes/firestore.js";
+import { TARGETS } from "../../src/constants.js";
 
 test("create_document: writes with an explicit docId", async () => {
   const db = makeDb();
-  const res = await handler({ collection: "users", docId: "a", data: { name: "Ada" } }, db);
+  const res = await handler(
+    { collection: "users", docId: "a", data: { name: "Ada" } },
+    db,
+  );
 
   assert.deepEqual(res, { collection: "users", id: "a", operation: "created" });
   assert.deepEqual(db.data.users.a, { name: "Ada" });
@@ -20,4 +24,21 @@ test("create_document: auto-generates an id when none is provided", async () => 
   assert.equal(res.operation, "created");
   assert.ok(res.id, "an id should be generated");
   assert.deepEqual(db.data.users[res.id], { name: "Grace" });
+});
+
+test("create_document: refuses production write without confirm", async () => {
+  const db = makeDb();
+  await assert.rejects(
+    () => handler({ collection: "users", data: { name: "Ada" } }, db, TARGETS.PRODUCTION),
+    /production/i,
+  );
+  assert.equal(db.writes.length, 0, "nothing is written");
+});
+
+test("create_document: rejects empty data", async () => {
+  const db = makeDb();
+  await assert.rejects(
+    () => handler({ collection: "users", data: {} }, db, TARGETS.EMULATOR),
+    /at least one field/,
+  );
 });

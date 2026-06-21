@@ -1,5 +1,6 @@
 import { COLLECTION_PROPERTY, WHERE_CLAUSES_PROPERTY } from "../helpers/schema.js";
 import { applyWhereClauses } from "../helpers/query.js";
+import { validateCollectionPath } from "../helpers/validate.js";
 
 export const definition = {
   name: "count_documents",
@@ -16,6 +17,7 @@ export const definition = {
 };
 
 export async function handler(args, db) {
+  validateCollectionPath(args.collection);
   let query = db.collection(args.collection);
 
   if (args.where && Array.isArray(args.where)) {

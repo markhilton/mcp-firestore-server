@@ -1,5 +1,6 @@
 import { COLLECTION_PROPERTY, PAGINATION_PROPERTIES } from "../helpers/schema.js";
 import { applyOrderBy, applyPagination, executeQuery } from "../helpers/query.js";
+import { validateCollectionPath } from "../helpers/validate.js";
 
 export const definition = {
   name: "query_collection",
@@ -16,6 +17,7 @@ export const definition = {
 };
 
 export async function handler(args, db) {
+  validateCollectionPath(args.collection);
   let query = db.collection(args.collection);
   query = applyOrderBy(query, args);
   query = await applyPagination(query, db, args.collection, args.startAfter);

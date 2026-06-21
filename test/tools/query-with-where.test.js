@@ -15,7 +15,10 @@ function seedDb() {
 
 test("query_with_where: multi-clause where format", async () => {
   const db = seedDb();
-  const res = await handler({ collection: "users", where: [["role", "==", "admin"]] }, db);
+  const res = await handler(
+    { collection: "users", where: [["role", "==", "admin"]] },
+    db,
+  );
 
   assert.equal(res.collection, "users");
   assert.equal(res.count, 2);
@@ -27,7 +30,13 @@ test("query_with_where: multi-clause where format", async () => {
 test("query_with_where: joins multiple clauses with AND", async () => {
   const db = seedDb();
   const res = await handler(
-    { collection: "users", where: [["role", "==", "admin"], ["age", ">", "35"]] },
+    {
+      collection: "users",
+      where: [
+        ["role", "==", "admin"],
+        ["age", ">", "35"],
+      ],
+    },
     db,
   );
   assert.equal(res.count, 1);
@@ -56,7 +65,10 @@ test("query_with_where: throws when neither where nor legacy params are given", 
 
 test("query_with_where: empty result omits lastDocId", async () => {
   const db = seedDb();
-  const res = await handler({ collection: "users", where: [["role", "==", "ghost"]] }, db);
+  const res = await handler(
+    { collection: "users", where: [["role", "==", "ghost"]] },
+    db,
+  );
   assert.equal(res.count, 0);
   assert.equal(res.lastDocId, undefined);
 });

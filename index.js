@@ -12,4 +12,11 @@ process.on("unhandledRejection", (reason, promise) => {
   process.exit(1);
 });
 
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => {
+    console.error(`Received ${signal}, shutting down Firestore MCP Server.`);
+    process.exit(0);
+  });
+}
+
 startServer();

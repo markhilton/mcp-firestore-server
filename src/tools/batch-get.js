@@ -1,5 +1,6 @@
 import { COLLECTION_PROPERTY } from "../helpers/schema.js";
 import { mapDocSnapshot } from "../helpers/query.js";
+import { validateCollectionPath, assertBatchSize } from "../helpers/validate.js";
 
 export const definition = {
   name: "batch_get",
@@ -20,6 +21,9 @@ export const definition = {
 };
 
 export async function handler(args, db) {
+  validateCollectionPath(args.collection);
+  assertBatchSize(args.docIds);
+
   const refs = args.docIds.map(id => db.collection(args.collection).doc(id));
   const snapshots = await db.getAll(...refs);
   const docs = snapshots.map(mapDocSnapshot);
