@@ -9,6 +9,10 @@ test/
 *.test.js
 *.spec.js
 
+# Dev tooling: schema-compliance gate + Claude Code review agent/skill
+scripts/
+.claude/
+
 # Development dependencies
 node_modules/
 .npm/

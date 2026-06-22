@@ -39,7 +39,10 @@ export const WHERE_CLAUSES_PROPERTY = {
     "Array of where clauses: [[field, operator, value], ...]. Values are auto-coerced to numbers, booleans, arrays, etc.",
   items: {
     type: "array",
-    items: [
+    // Draft 2020-12 tuple validation uses `prefixItems` (the legacy array-form
+    // `items: [...]` is invalid under 2020-12 and makes Anthropic reject the
+    // whole tool list with `tools.N.custom.input_schema: JSON schema is invalid`).
+    prefixItems: [
       { type: "string", description: "Field name" },
       { type: "string", enum: WHERE_OPERATORS, description: "Comparison operator" },
       { type: "string", description: "Value to compare (auto-coerced)" },

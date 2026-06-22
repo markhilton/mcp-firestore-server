@@ -10,10 +10,31 @@ MCP (Model Context Protocol) server that exposes Firestore database operations a
 
 - **Run**: `npm start` or `node index.js`
 - **Install**: `npm install`
+- **Test**: `npm test` (Node's built-in `node --test`; specs live in `test/`)
+- **Lint**: `npm run lint` (prettier + eslint) · **Format**: `npm run format`
+- **Validate tool schemas**: `npm run validate:schemas` (JSON Schema Draft 2020-12 gate)
 - **Test locally with link**: `npm link` then `npm link @nerd305/mcp-firestore-server` in consumer project
-- **Publish**: `npm publish --access public`
+- **Publish**: `npm publish --access public` — `prepublishOnly` runs `lint && test && validate:schemas`, so a non-compliant tool schema blocks the publish.
 
-No test framework or linter is configured.
+## Tool Schema Compliance (MANDATORY)
+
+Every tool `inputSchema` MUST be valid **JSON Schema Draft 2020-12** — Anthropic
+rejects the _entire_ tool list with `400 tools.N.custom.input_schema: JSON schema
+is invalid` if even one tool is non-compliant, which presents as an unrecoverable
+client crash. (This bit us in v3.0.0: a legacy array-form `items: [...]` tuple in
+`src/helpers/schema.js` → fixed to `prefixItems` in 3.0.1.)
+
+**After any change to a tool in `src/tools/` or to `src/helpers/schema.js`:**
+
+1. Run `npm run validate:schemas` (must exit 0) and `npm test`.
+2. Run the **`schema-compliance-reviewer`** agent (`.claude/agents/`) — it gates the
+   schemas PASS/FAIL against the rule database in
+   `.claude/skills/mcp-schema-compliance/SKILL.md` and blocks on any ERROR finding.
+3. Never `npm publish` if the schema gate is non-zero. Never `--force` past it.
+
+The skill enumerates the forbidden patterns (SC-01 array-form `items`, SC-02 boolean
+`exclusiveMinimum`, SC-03 `type: "any"`, SC-04 non-object root, plus OpenAPI/draft-07
+keyword warnings). Read it before authoring tool schemas.
 
 ## Architecture
 

@@ -22,3 +22,5 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - name: Validate MCP tool schemas (JSON Schema Draft 2020-12)
+        run: npm run validate:schemas

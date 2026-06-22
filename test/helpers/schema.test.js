@@ -28,5 +28,8 @@ test("WHERE_CLAUSES_PROPERTY constrains the operator slot to WHERE_OPERATORS", (
   const tuple = WHERE_CLAUSES_PROPERTY.items;
   assert.equal(tuple.minItems, 3);
   assert.equal(tuple.maxItems, 3);
-  assert.deepEqual(tuple.items[1].enum, WHERE_OPERATORS);
+  // Draft 2020-12 tuple validation: positional schemas live in `prefixItems`,
+  // not the legacy array-form `items` (which would 400 the whole tool list).
+  assert.equal(tuple.items, undefined, "must not use legacy array-form `items`");
+  assert.deepEqual(tuple.prefixItems[1].enum, WHERE_OPERATORS);
 });
