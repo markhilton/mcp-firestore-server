@@ -42,6 +42,24 @@ function evalOperator(fieldValue, operator, value) {
   }
 }
 
+/** Project `data` onto dotted field paths like the real SDK: "a.b" -> { a: { b } }. */
+function selectPaths(data, paths) {
+  const out = {};
+  for (const path of paths) {
+    const parts = path.split(".");
+    let src = data;
+    for (const p of parts) {
+      src = src !== null && typeof src === "object" && p in src ? src[p] : undefined;
+      if (src === undefined) break;
+    }
+    if (src === undefined) continue;
+    let dst = out;
+    for (const p of parts.slice(0, -1)) dst = dst[p] ||= {};
+    dst[parts[parts.length - 1]] = src;
+  }
+  return out;
+}
+
 class DocumentSnapshot {
   constructor(id, data) {
     this.id = id;
@@ -172,12 +190,7 @@ class Query {
   }
   async get() {
     const rows = this._rows();
-    const pick = data =>
-      this._select
-        ? Object.fromEntries(
-            Object.entries(data).filter(([k]) => this._select.includes(k)),
-          )
-        : data;
+    const pick = data => (this._select ? selectPaths(data, this._select) : data);
     const docs = rows.map(r => new DocumentSnapshot(r.id, pick(r.data)));
     return { docs, size: docs.length, empty: docs.length === 0 };
   }
@@ -200,6 +213,7 @@ export class FakeFirestore {
     this.data = {};
     this.writes = [];
     this.selectCalls = [];
+    this.getAllCalls = [];
     this._nextId = 1;
     for (const [path, docs] of Object.entries(seed)) {
       this.data[path] = {};
@@ -217,9 +231,17 @@ export class FakeFirestore {
     return new DocumentReference(this, parts.join("/"), id);
   }
   async getAll(...args) {
-    // Trailing options object ({ fieldMask }) is accepted and ignored.
+    // Trailing options object ({ fieldMask }) projects each existing doc.
     const refs = args.filter(a => typeof a?.get === "function");
-    return Promise.all(refs.map(ref => ref.get()));
+    const mask = args.find(
+      a => a && typeof a.get !== "function" && a.fieldMask,
+    )?.fieldMask;
+    this.getAllCalls.push({ count: refs.length, fieldMask: mask });
+    const snaps = await Promise.all(refs.map(ref => ref.get()));
+    if (!mask) return snaps;
+    return snaps.map(
+      s => new DocumentSnapshot(s.id, s.exists ? selectPaths(s.data(), mask) : undefined),
+    );
   }
   async listCollections() {
     return this._subcollectionsOf("");

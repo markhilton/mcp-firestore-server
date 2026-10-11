@@ -40,6 +40,27 @@ async function testConnection(target) {
   await Promise.race([testQuery, timeout]);
 }
 
+/** In-flight credential resets, one per target, so concurrent failures share one reset. */
+const inflightResets = new Map();
+
+/**
+ * Reset a target once for any number of concurrent callers. Skips the reset when
+ * the target's current db is no longer the one that failed (someone already reset it).
+ */
+async function resetOnce(target, failedDb, lookupDb, reset) {
+  const pending = inflightResets.get(target);
+  if (pending) {
+    await pending;
+    return;
+  }
+  if (lookupDb(target).db !== failedDb) return;
+  const promise = Promise.resolve(reset(target)).finally(() => {
+    inflightResets.delete(target);
+  });
+  inflightResets.set(target, promise);
+  await promise;
+}
+
 /**
  * Execute one tool call: validate, enforce read-only mode, run the handler,
  * and on an auth-class failure reset that target's credentials and retry once.
@@ -87,7 +108,7 @@ export async function handleToolCall(name, args, deps) {
       console.error(
         `[${target}] Auth error, re-initialising credentials and retrying once`,
       );
-      await reset(target);
+      await resetOnce(target, db, lookupDb, reset);
       ({ db } = lookupDb(target));
       result = await handler(args, db, target);
     }

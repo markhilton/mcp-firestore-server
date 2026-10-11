@@ -30,7 +30,18 @@ function createProductionDb(projectId) {
  * Delete and re-create the firebase-admin app for one target, so expired
  * credentials are re-read. Leaves the other target untouched.
  */
-export async function resetTarget(target) {
+export function resetTarget(target) {
+  const pending = resetsInFlight.get(target);
+  if (pending) return pending;
+  const promise = doResetTarget(target).finally(() => resetsInFlight.delete(target));
+  resetsInFlight.set(target, promise);
+  return promise;
+}
+
+/** One in-flight reset per target; concurrent callers share it. */
+const resetsInFlight = new Map();
+
+async function doResetTarget(target) {
   if (target !== TARGETS.EMULATOR && target !== TARGETS.PRODUCTION) {
     throw new Error(`Unknown target "${target}".`);
   }

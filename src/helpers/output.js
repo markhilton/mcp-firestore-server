@@ -150,15 +150,28 @@ export function prepareDocs(docs, { fields, raw } = {}) {
  * Returns { docs, compacted, dropped } where dropped is the list of removed docs.
  */
 export function fitDocs(prepared, maxChars) {
-  const kept = [...prepared];
-  const dropped = [];
-  while (kept.length > 1 && size(kept.map(p => p.doc)) > maxChars) {
-    dropped.unshift(kept.pop().doc);
+  if (prepared.length === 0) return { docs: [], compacted: [], dropped: [] };
+  // JSON.stringify(arr, null, 2) = "[\n" + items indented 2 spaces, joined ",\n" + "\n]".
+  // Indenting an item adds 2 chars plus 2 per embedded newline. Size each doc once.
+  const itemSize = p => {
+    const s = JSON.stringify(p.doc, null, 2);
+    let newlines = 0;
+    for (let i = s.indexOf("\n"); i !== -1; i = s.indexOf("\n", i + 1)) newlines++;
+    return s.length + 2 + newlines * 2;
+  };
+  let total = 4 + itemSize(prepared[0]); // brackets/newlines + first doc (always kept)
+  let keep = 1;
+  while (keep < prepared.length) {
+    const next = total + 2 + itemSize(prepared[keep]);
+    if (next > maxChars) break;
+    total = next;
+    keep++;
   }
+  const kept = prepared.slice(0, keep);
   return {
     docs: kept.map(p => p.doc),
     compacted: kept.flatMap(p => p.compacted),
-    dropped,
+    dropped: prepared.slice(keep).map(p => p.doc),
   };
 }
 

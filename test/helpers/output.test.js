@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -224,4 +225,37 @@ test("batch_get: projection, compaction, and trailing-doc budget with omittedIds
   assert.ok(res.documents.length >= 1);
   assert.equal(res.requested, 3);
   assert.equal(res.documents.length + res.omittedIds.length, 3);
+});
+
+test("fitDocs: 1000 docs under a small budget is fast and matches the pop-until-fit cut", async () => {
+  const { fitDocs } = await import("../../src/helpers/output.js");
+  const prepared = Array.from({ length: 1000 }, (_, i) => ({
+    doc: {
+      id: `d${i}`,
+      exists: true,
+      data: { n: i, s: "x".repeat(i % 17), o: { k: [i] } },
+    },
+    compacted: [],
+  }));
+  const oldCut = max => {
+    const kept = [...prepared];
+    while (
+      kept.length > 1 &&
+      JSON.stringify(
+        kept.map(p => p.doc),
+        null,
+        2,
+      ).length > max
+    )
+      kept.pop();
+    return kept.length;
+  };
+  for (const max of [1, 500, 3000, 20000, 10_000_000]) {
+    const t0 = performance.now();
+    const res = fitDocs(prepared, max);
+    assert.ok(performance.now() - t0 < 200);
+    assert.equal(res.docs.length, oldCut(max));
+    assert.equal(res.docs.length + res.dropped.length, 1000);
+  }
+  assert.deepEqual(fitDocs([], 1000), { docs: [], compacted: [], dropped: [] });
 });

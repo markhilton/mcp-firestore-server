@@ -56,18 +56,22 @@ export async function handler(args, db) {
   }
   const dropped = fit.dropped;
 
+  const droppedHint =
+    "Response exceeded the budget; omittedIds were not returned. Re-request them, or pass 'fields' to select fewer fields.";
+  const hints = [dropped.length > 0 && droppedHint, extras.hint].filter(Boolean);
+
   return {
     collection: args.collection,
     count: docs.filter(d => d.exists).length,
     requested: args.docIds.length,
     documents: docs,
     ...(compacted.length > 0 && { compacted }),
-    ...(dropped.length > 0 && {
+    ...((dropped.length > 0 || extras.truncated) && {
       truncated: true,
       truncatedReason: "maxChars",
-      omittedIds: dropped.map(d => d.id),
-      hint: "Response exceeded the budget; omittedIds were not returned. Re-request them, or pass 'fields' to select fewer fields.",
     }),
-    ...(dropped.length === 0 && extras),
+    ...(dropped.length > 0 && { omittedIds: dropped.map(d => d.id) }),
+    ...(extras.omittedFields && { omittedFields: extras.omittedFields }),
+    ...(hints.length > 0 && { hint: hints.join(" ") }),
   };
 }

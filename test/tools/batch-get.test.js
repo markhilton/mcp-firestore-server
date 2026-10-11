@@ -25,3 +25,34 @@ test("batch_get: fetches multiple docs, marking missing ones", async () => {
   );
   assert.equal(res.documents[1].data, null);
 });
+
+test("batch_get: dropped docs plus oversize survivor reports omittedIds and omittedFields", async () => {
+  const big = {};
+  for (let i = 0; i < 30; i++) big[`f${String(i).padStart(2, "0")}`] = "x".repeat(3000);
+  const db = makeDb({
+    docs: [
+      { id: "a", ...big },
+      { id: "b", y: 1 },
+    ],
+  });
+  const res = await handler(
+    { collection: "docs", docIds: ["a", "b"], maxChars: 20000, raw: true },
+    db,
+  );
+  assert.deepEqual(res.omittedIds, ["b"]);
+  assert.equal(res.truncated, true);
+  assert.ok(Array.isArray(res.omittedFields) && res.omittedFields.length > 0);
+  const kept = Object.keys(res.documents[0].data);
+  assert.equal(kept.length + res.omittedFields.length, 30);
+  assert.ok(res.omittedFields.every(f => !kept.includes(f)));
+  assert.ok(res.hint);
+});
+
+test("batch_get: fields mask is honoured with dotted paths", async () => {
+  const db = makeDb({ docs: [{ id: "a", author: { name: "Ada", age: 3 }, z: 1 }] });
+  const res = await handler(
+    { collection: "docs", docIds: ["a"], fields: ["author.name"] },
+    db,
+  );
+  assert.deepEqual(res.documents[0].data, { author: { name: "Ada" } });
+});
