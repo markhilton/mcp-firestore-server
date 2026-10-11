@@ -1,4 +1,5 @@
 import { coerceValue } from "../helpers/coerce-value.js";
+import { decodeQueryValue } from "../helpers/typed-values.js";
 import {
   COLLECTION_PROPERTY,
   PAGINATION_PROPERTIES,
@@ -16,7 +17,7 @@ import { validateCollectionPath } from "../helpers/validate.js";
 export const definition = {
   name: "query_with_where",
   description:
-    "Query a collection with where conditions. Supports single or multiple clauses, value type coercion, and pagination. Supports subcollection paths.",
+    "Query a collection with where conditions. Supports single or multiple clauses, value type coercion (including Timestamp values), and pagination. Supports subcollection paths.",
   inputSchema: {
     type: "object",
     properties: {
@@ -35,7 +36,7 @@ export const definition = {
       value: {
         type: "string",
         description:
-          "Value to compare (legacy single-clause format). Numbers, booleans, and arrays are auto-coerced.",
+          'Value to compare (legacy single-clause format). Numbers, booleans, and arrays are auto-coerced; JSON-encoded Timestamps such as {"$timestamp": "2026-10-11T01:17:00Z"} are decoded.',
       },
       ...PAGINATION_PROPERTIES,
     },
@@ -53,7 +54,7 @@ export async function handler(args, db) {
     ({ query, clauses } = applyWhereClauses(query, args.where));
   } else if (args.field && args.operator && args.value !== undefined) {
     // Legacy single-clause format
-    const coerced = coerceValue(args.value);
+    const coerced = decodeQueryValue(coerceValue(args.value), args.field);
     clauses = [{ field: args.field, operator: args.operator, value: coerced }];
     query = query.where(args.field, args.operator, coerced);
   } else {

@@ -1,4 +1,5 @@
 import { coerceValue } from "./coerce-value.js";
+import { decodeQueryValue } from "./typed-values.js";
 
 /**
  * Valid Firestore where operators.
@@ -23,7 +24,7 @@ export function applyWhereClauses(query, whereClauses) {
   const clauses = [];
   for (const clause of whereClauses) {
     const [field, operator, value] = clause;
-    const coerced = coerceValue(value);
+    const coerced = decodeQueryValue(coerceValue(value), field);
     clauses.push({ field, operator, value: coerced });
     query = query.where(field, operator, coerced);
   }

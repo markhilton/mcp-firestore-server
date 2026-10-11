@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { handler } from "../../src/tools/update-document.js";
 import { makeDb } from "../fakes/firestore.js";
 import { TARGETS } from "../../src/constants.js";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 test("update_document: merges by default", async () => {
   const db = makeDb({ users: [{ id: "a", name: "Ada", age: 30 }] });
@@ -42,4 +43,50 @@ test("update_document: refuses production write without confirm", async () => {
     /production/i,
   );
   assert.deepEqual(db.data.users.a, { name: "Ada", age: 30 }, "doc is unchanged");
+});
+
+test("update_document: merge decodes $timestamp and nested $delete", async () => {
+  const db = makeDb({
+    image_advisories: [{ id: "x", status: "open", meta: { tmp: 1 } }],
+  });
+  await handler(
+    {
+      collection: "image_advisories",
+      docId: "x",
+      data: {
+        resolvedAt: { $timestamp: "2026-10-11T01:17:00Z" },
+        meta: { tmp: { $delete: true } },
+        reviewCount: { $increment: 1 },
+      },
+    },
+    db,
+  );
+  const { data, options } = db.writes.at(-1);
+  assert.equal(options.merge, true);
+  assert.ok(data.resolvedAt instanceof Timestamp);
+  assert.ok(data.meta.tmp.isEqual(FieldValue.delete()));
+  assert.ok(data.reviewCount.isEqual(FieldValue.increment(1)));
+});
+
+test("update_document: merge:false allows top-level $delete only", async () => {
+  const db = makeDb({ users: [{ id: "a", name: "Ada", nick: "A", m: { k: 1 } }] });
+  await handler(
+    { collection: "users", docId: "a", data: { nick: { $delete: true } }, merge: false },
+    db,
+  );
+  assert.ok(db.writes.at(-1).data.nick.isEqual(FieldValue.delete()));
+
+  await assert.rejects(
+    () =>
+      handler(
+        {
+          collection: "users",
+          docId: "a",
+          data: { m: { k: { $delete: true } } },
+          merge: false,
+        },
+        db,
+      ),
+    /requires merge:true/,
+  );
 });

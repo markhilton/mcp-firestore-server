@@ -115,7 +115,7 @@ Get a specific document by ID.
 
 ### query_with_where
 
-Query documents with where conditions. Supports multiple clauses and automatic value type coercion (numbers, booleans, arrays are auto-detected from strings).
+Query documents with where conditions. Supports multiple clauses and automatic value type coercion (numbers, booleans, arrays are auto-detected from strings). JSON-encoded [Timestamp values](#typed-values-timestamps-and-field-sentinels) are decoded too.
 
 ```typescript
 {
@@ -178,7 +178,7 @@ Fetch multiple documents by ID in a single request.
 
 ### create_document
 
-Create a new document.
+Create a new document. `data` supports [typed values](#typed-values-timestamps-and-field-sentinels) except `$delete`.
 
 ```typescript
 {
@@ -192,7 +192,7 @@ Create a new document.
 
 ### update_document
 
-Update an existing document.
+Update an existing document. `data` supports [typed values](#typed-values-timestamps-and-field-sentinels), including `{"$delete": true}` to remove a field.
 
 ```typescript
 {
@@ -215,6 +215,41 @@ Delete a document.
   docId: string;
   confirm?: boolean;        // Required true to delete from production
   target?: "emulator" | "production";
+}
+```
+
+## Typed values (Timestamps and field sentinels)
+
+Tool input is plain JSON, so Firestore-native types use an encoding. `create_document` and `update_document` decode these forms anywhere in `data`, including nested maps and arrays:
+
+| JSON form                                     | Stored as                      | Notes                                                                                                           |
+| --------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `{"_seconds": 1791681420, "_nanoseconds": 0}` | `Timestamp`                    | The same shape reads return, so read → write round-trips.                                                       |
+| `{"$timestamp": "2026-10-11T01:17:00Z"}`      | `Timestamp`                    | ISO-8601 with an explicit timezone (`Z` or `±hh:mm`), or a bare date (UTC midnight). Up to 9 fractional digits. |
+| `{"$serverTimestamp": true}`                  | `FieldValue.serverTimestamp()` | Not allowed inside arrays.                                                                                      |
+| `{"$increment": 1}`                           | `FieldValue.increment(n)`      | Any finite number. Not allowed inside arrays.                                                                   |
+| `{"$delete": true}`                           | `FieldValue.delete()`          | `update_document` only. Nested maps require `merge: true` (the default). Rejected by `create_document`.         |
+
+Bare ISO strings are **not** converted, so ordinary string fields are never retyped. A tagged object must contain only its tag key; malformed values fail with an error that names the field path.
+
+```json
+{
+  "collection": "image_advisories",
+  "docId": "abc123",
+  "data": {
+    "resolvedAt": { "$timestamp": "2026-10-11T01:17:00Z" },
+    "updatedAt": { "$serverTimestamp": true },
+    "tempNote": { "$delete": true }
+  }
+}
+```
+
+Where-clause values in `query_with_where` and `count_documents` accept the two Timestamp forms as JSON-encoded strings, so you can filter on timestamps (write sentinels are rejected in queries):
+
+```json
+{
+  "collection": "image_advisories",
+  "where": [["resolvedAt", ">=", "{\"$timestamp\": \"2026-10-01T00:00:00Z\"}"]]
 }
 ```
 

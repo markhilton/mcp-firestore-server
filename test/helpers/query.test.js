@@ -144,3 +144,18 @@ test("mapDocSnapshot: missing document yields null data", () => {
     data: null,
   });
 });
+
+test("applyWhereClauses: decodes JSON-encoded Timestamp values", async () => {
+  const { Timestamp } = await import("firebase-admin/firestore");
+  const db = makeDb();
+  const { clauses } = applyWhereClauses(db.collection("x"), [
+    ["resolvedAt", ">=", '{"$timestamp": "2026-10-11T00:00:00Z"}'],
+    ["createdAt", "<", '{"_seconds": 100, "_nanoseconds": 0}'],
+  ]);
+  assert.ok(clauses[0].value instanceof Timestamp);
+  assert.equal(clauses[1].value.seconds, 100);
+  assert.throws(
+    () => applyWhereClauses(db.collection("x"), [["a", "==", '{"$delete": true}']]),
+    /cannot be used in a query/,
+  );
+});
