@@ -19,7 +19,7 @@ import { validateCollectionPath } from "../helpers/validate.js";
 export const definition = {
   name: "query_with_where",
   description:
-    "Query a collection with where conditions. Supports single or multiple clauses, value type coercion (including Timestamp values), and pagination. Supports subcollection paths. Paginate with startAfter=lastDocId. Output is capped (default 60000 chars): if `truncated` is true, fetch the next page with startAfter=lastDocId, or pass `fields` to select fewer fields.",
+    "Query a collection with where conditions. Supports single or multiple clauses, value type coercion (including Timestamp values), and pagination. Supports subcollection paths. Paginate with startAfter=lastDocId. Output is capped (default 60000 chars): if values were compacted the response has `partial: true` (pass `raw: true` for full values); if `truncated` is true, fetch the next page with startAfter=lastDocId, or pass `fields` to select fewer fields.",
   inputSchema: {
     type: "object",
     properties: {

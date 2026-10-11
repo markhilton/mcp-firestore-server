@@ -17,7 +17,14 @@ Driven by a review of 1,188 real Claude Code tool calls, about 20% of which fail
 
 ### Changed
 
-- Read responses compact large values by default. Pass `raw: true` for the previous output.
+- Read responses compact large values by default and set `partial: true`. Pass `raw: true` for the previous output.
+- `limit` on query tools is now an integer from 1 to 1000 (previously unbounded). Page with `startAfter`.
+
+### Security
+
+- `fields` paths cannot reach `__proto__`, `constructor`, or `prototype`, and projection never writes through the prototype chain (prevented a prototype-pollution bypass of the production `confirm` gate). `confirm`, `merge`, and `target` are read as own properties only.
+- Error messages redact absolute paths, service-account emails, OAuth/Bearer tokens, and private keys unless `MCP_FIRESTORE_DEBUG` is set.
+- Auth-error detection uses structured signals only; unknown-argument echoes are length- and count-bounded.
 
 ## 3.1.0 — 2026-10-10
 

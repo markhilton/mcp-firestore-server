@@ -12,7 +12,10 @@ import { TARGETS } from "../constants.js";
  * @throws {Error} When writing to production without `confirm: true`.
  */
 export function assertWriteAllowed(target, args) {
-  if (target === TARGETS.PRODUCTION && args?.confirm !== true) {
+  if (
+    target === TARGETS.PRODUCTION &&
+    !(Object.hasOwn(args ?? {}, "confirm") && args.confirm === true)
+  ) {
     throw new Error(
       "Refusing production write: pass confirm:true to write to the production target (target=production).",
     );

@@ -25,7 +25,13 @@ export const TYPED_VALUES_DESCRIPTION =
   'Typed values (any depth, incl. arrays): Timestamp as {"_seconds": n, "_nanoseconds": n} (same shape reads return) or {"$timestamp": "2026-10-11T01:17:00Z"} (ISO-8601 with timezone). Sentinels (not inside arrays): {"$serverTimestamp": true}, {"$increment": n}. Bare ISO strings stay strings.';
 
 export const PAGINATION_PROPERTIES = {
-  limit: { type: "number", default: 10, description: "Maximum documents to return" },
+  limit: {
+    type: "integer",
+    minimum: 1,
+    maximum: 1000,
+    default: 10,
+    description: "Maximum documents to return (1-1000, default 10)",
+  },
   orderBy: {
     type: "string",
     description:

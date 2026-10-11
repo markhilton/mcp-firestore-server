@@ -1,6 +1,7 @@
 import { coerceValue } from "./coerce-value.js";
 import { decodeQueryValue } from "./typed-values.js";
 import { finalizeQueryDocs } from "./output.js";
+import { resolveLimit } from "./validate.js";
 
 /**
  * Valid Firestore where operators.
@@ -64,7 +65,7 @@ export async function applyPagination(query, db, collection, startAfterId) {
  * doc so startAfter continues correctly, and extras holds compacted/truncated.
  */
 export async function executeQuery(query, limit, options = {}) {
-  const snapshot = await query.limit(parseInt(limit, 10) || 10).get();
+  const snapshot = await query.limit(resolveLimit(limit)).get();
 
   const rawDocs = snapshot.docs.map(doc => ({
     id: doc.id,

@@ -33,3 +33,14 @@ test("WHERE_CLAUSES_PROPERTY constrains the operator slot to WHERE_OPERATORS", (
   assert.equal(tuple.items, undefined, "must not use legacy array-form `items`");
   assert.deepEqual(tuple.prefixItems[1].enum, WHERE_OPERATORS);
 });
+
+test("PAGINATION_PROPERTIES.limit is a bounded integer", () => {
+  assert.deepEqual(
+    [
+      PAGINATION_PROPERTIES.limit.type,
+      PAGINATION_PROPERTIES.limit.minimum,
+      PAGINATION_PROPERTIES.limit.maximum,
+    ],
+    ["integer", 1, 1000],
+  );
+});

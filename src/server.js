@@ -93,7 +93,9 @@ export async function handleToolCall(name, args, deps) {
       if (problem) throw new Error(problem);
     }
 
-    let { db, target } = lookupDb(args.target);
+    let { db, target } = lookupDb(
+      Object.hasOwn(args, "target") ? args.target : undefined,
+    );
     if (isWrite && readOnly === "production" && target === TARGETS.PRODUCTION) {
       throw new Error(
         `${name} on the production target is disabled (MCP_FIRESTORE_READONLY=production). Use target "emulator" or a read tool.`,

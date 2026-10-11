@@ -10,7 +10,7 @@ import { validateCollectionPath } from "../helpers/validate.js";
 export const definition = {
   name: "query_collection",
   description:
-    "Query a Firestore collection. Supports subcollection paths (e.g. 'users/uid/posts'). Paginate with startAfter=lastDocId. Output is capped (default 60000 chars): if `truncated` is true, fetch the next page with startAfter=lastDocId, or pass `fields` to select fewer fields.",
+    "Query a Firestore collection. Supports subcollection paths (e.g. 'users/uid/posts'). Paginate with startAfter=lastDocId. Output is capped (default 60000 chars): if values were compacted the response has `partial: true` (pass `raw: true` for full values); if `truncated` is true, fetch the next page with startAfter=lastDocId, or pass `fields` to select fewer fields.",
   inputSchema: {
     type: "object",
     properties: {

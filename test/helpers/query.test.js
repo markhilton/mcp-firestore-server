@@ -160,3 +160,15 @@ test("applyWhereClauses: decodes JSON-encoded Timestamp values", async () => {
     /cannot be used in a query/,
   );
 });
+
+test("executeQuery: rejects out-of-range limits", async () => {
+  const db = makeDb({ items: [{ id: "a", n: 1 }] });
+  await assert.rejects(
+    () => executeQuery(db.collection("items"), 1001),
+    /between 1 and 1000/,
+  );
+  await assert.rejects(
+    () => executeQuery(db.collection("items"), 0),
+    /between 1 and 1000/,
+  );
+});

@@ -8,6 +8,7 @@ let productionDb = null;
 let defaultTarget = null;
 let availableTargets = [];
 let activeProjectId = null;
+let activeEmulatorHost = null;
 
 /** Build the emulator app/db. FIRESTORE_EMULATOR_HOST must be set. */
 function createEmulatorDb(projectId, emulatorHost) {
@@ -54,7 +55,12 @@ async function doResetTarget(target) {
     // App already gone or failing to shut down: re-create regardless.
   }
   if (target === TARGETS.EMULATOR) {
-    emulatorDb = createEmulatorDb(activeProjectId, process.env.FIRESTORE_EMULATOR_HOST);
+    if (!activeEmulatorHost) {
+      throw new Error(
+        "Cannot reset the emulator target: no emulator host was captured at startup. Set FIRESTORE_EMULATOR_HOST and restart the server.",
+      );
+    }
+    emulatorDb = createEmulatorDb(activeProjectId, activeEmulatorHost);
   } else {
     productionDb = createProductionDb(activeProjectId);
   }
@@ -78,6 +84,7 @@ export function initFirebase() {
   productionDb = null;
   defaultTarget = null;
   availableTargets = [];
+  activeEmulatorHost = null;
 
   const projectId = detectProjectId();
 
@@ -101,6 +108,7 @@ export function initFirebase() {
   }
 
   activeProjectId = projectId;
+  activeEmulatorHost = emulatorHost || null;
   console.error(`Project ID: ${projectId}`);
 
   // Initialize emulator target

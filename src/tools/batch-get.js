@@ -12,7 +12,7 @@ import {
 export const definition = {
   name: "batch_get",
   description:
-    "Fetch multiple documents by ID in a single request. Uses Firestore's getAll() for efficiency. Supports subcollection paths. Large values are compacted and output is capped: pass `fields` to select only needed fields, `raw: true` for uncompacted values, `maxChars` to raise the cap. If `truncated`, re-request the ids in `omittedIds`.",
+    "Fetch multiple documents by ID in a single request. Uses Firestore's getAll() for efficiency. Supports subcollection paths. Large values are compacted and output is capped: pass `fields` to select only needed fields, `raw: true` for uncompacted values (when values were compacted the response has `partial: true` and `compacted` lists them), `maxChars` to raise the cap. If `truncated`, re-request the ids in `omittedIds`.",
   inputSchema: {
     type: "object",
     properties: {
@@ -65,7 +65,7 @@ export async function handler(args, db) {
     count: docs.filter(d => d.exists).length,
     requested: args.docIds.length,
     documents: docs,
-    ...(compacted.length > 0 && { compacted }),
+    ...(compacted.length > 0 && { compacted, partial: true }),
     ...((dropped.length > 0 || extras.truncated) && {
       truncated: true,
       truncatedReason: "maxChars",

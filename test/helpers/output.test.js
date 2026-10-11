@@ -6,7 +6,9 @@ import {
   compactData,
   resolveMaxChars,
   normalizeFields,
+  queryExtras,
 } from "../../src/helpers/output.js";
+import { Timestamp } from "firebase-admin/firestore";
 import { WHERE_OPERATORS } from "../../src/helpers/query.js";
 import { handler as queryCollection } from "../../src/tools/query-collection.js";
 import { handler as queryWithWhere } from "../../src/tools/query-with-where.js";
@@ -258,4 +260,48 @@ test("fitDocs: 1000 docs under a small budget is fast and matches the pop-until-
     assert.equal(res.docs.length + res.dropped.length, 1000);
   }
   assert.deepEqual(fitDocs([], 1000), { docs: [], compacted: [], dropped: [] });
+});
+
+test("normalizeFields: rejects prototype segments, empty segments, and over-limit input", () => {
+  for (const f of ["a.__proto__.b", "constructor.x", "a.prototype", "a..b", ".a", "a."]) {
+    assert.throws(() => normalizeFields([f]), /Invalid field path/, f);
+  }
+  const many = Array.from({ length: 101 }, (_, i) => `f${i}`);
+  assert.throws(() => normalizeFields(many), /Too many 'fields'/);
+  assert.throws(() => normalizeFields(["a".repeat(1501)]), /too long/);
+  assert.deepEqual(normalizeFields(["a".repeat(1500)]), ["a".repeat(1500)]);
+});
+
+test("projectData: Timestamp prototype walk is rejected and nothing is polluted", () => {
+  const data = { createdAt: Timestamp.now() };
+  assert.throws(
+    () => projectData(data, ["createdAt.__proto__.toMillis"]),
+    /Invalid field path/,
+  );
+  assert.equal({}.toMillis, undefined);
+  // Class instances are never descended into, even via own-looking names.
+  assert.deepEqual(projectData(data, ["createdAt.seconds"]), {});
+});
+
+test("projectData: own __proto__ key in data is rejected as a path and safe paths do not pollute", () => {
+  const data = JSON.parse('{"m":{"__proto__":{"confirm":true},"ok":1}}');
+  assert.throws(() => projectData(data, ["m.__proto__.confirm"]), /Invalid field path/);
+  const out = projectData(data, ["m"]);
+  assert.equal({}.confirm, undefined);
+  assert.equal(Object.getPrototypeOf(out), Object.prototype);
+  const { data: compacted } = compactData("d", out);
+  assert.equal(Object.getPrototypeOf(compacted.m), Object.prototype);
+  assert.equal(compacted.m.confirm, undefined);
+  assert.deepEqual(projectData(data, ["m.ok"]), { m: { ok: 1 } });
+  assert.equal({}.confirm, undefined);
+});
+
+test("queryExtras: compacted sets partial:true, truncated unchanged", () => {
+  const e = queryExtras({ compacted: ["a.emb"], dropped: [], singleOversize: false });
+  assert.equal(e.partial, true);
+  assert.equal("truncated" in e, false);
+  assert.equal(
+    "partial" in queryExtras({ compacted: [], dropped: [], singleOversize: false }),
+    false,
+  );
 });

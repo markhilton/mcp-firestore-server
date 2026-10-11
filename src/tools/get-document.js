@@ -11,7 +11,7 @@ import {
 export const definition = {
   name: "get_document",
   description:
-    "Get a specific document by ID. Supports subcollection paths (e.g. 'users/uid/posts'). Large values are compacted and output is capped: pass `fields` to select only needed fields (skip embeddings), `raw: true` for uncompacted values, `maxChars` to raise the cap.",
+    "Get a specific document by ID. Supports subcollection paths (e.g. 'users/uid/posts'). Large values are compacted and output is capped: pass `fields` to select only needed fields (skip embeddings), `raw: true` for uncompacted values (when values were compacted the response has `partial: true` and `compacted` lists them), `maxChars` to raise the cap.",
   inputSchema: {
     type: "object",
     properties: {
@@ -39,5 +39,9 @@ export async function handler(args, db) {
     const top = c.slice(mapped.id.length + 1).split(".")[0];
     return !(extras.omittedFields || []).includes(top);
   });
-  return { ...fitted, ...(kept.length > 0 && { compacted: kept }), ...extras };
+  return {
+    ...fitted,
+    ...(kept.length > 0 && { compacted: kept, partial: true }),
+    ...extras,
+  };
 }

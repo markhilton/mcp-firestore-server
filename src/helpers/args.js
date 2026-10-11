@@ -19,6 +19,9 @@ const ALIASES = {
   collection_name: "collection",
 };
 
+const MAX_KEY_LENGTH = 64;
+const MAX_UNKNOWN_SHOWN = 5;
+
 function distance(a, b) {
   const dp = Array.from({ length: a.length + 1 }, (_, i) => [i]);
   for (let j = 1; j <= b.length; j++) dp[0][j] = j;
@@ -62,9 +65,14 @@ export function checkUnknownArgs(toolName, args, inputSchema) {
   const unknown = Object.keys(args ?? {}).filter(k => !valid.includes(k));
   if (unknown.length === 0) return null;
 
-  const parts = unknown.map(key => {
-    const s = suggest(key, valid);
-    return `Unknown argument "${key}" for ${toolName}.${s ? ` Did you mean "${s}"?` : ""}`;
+  const shown = unknown.slice(0, MAX_UNKNOWN_SHOWN);
+  const parts = shown.map(key => {
+    const long = key.length > MAX_KEY_LENGTH;
+    const label = long ? `${key.slice(0, MAX_KEY_LENGTH)}…` : key;
+    const s = long ? null : suggest(key, valid);
+    return `Unknown argument "${label}" for ${toolName}.${s ? ` Did you mean "${s}"?` : ""}`;
   });
+  if (unknown.length > shown.length)
+    parts.push(`and ${unknown.length - shown.length} more.`);
   return `${parts.join(" ")} Valid arguments: ${[...valid].sort().join(", ")}.`;
 }

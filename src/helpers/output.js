@@ -8,6 +8,19 @@ export const MIN_MAX_CHARS = 1000;
 export const MAX_MAX_CHARS = 500000;
 export const VECTOR_MIN_LENGTH = 64;
 export const STRING_MAX_LENGTH = 4000;
+export const MAX_FIELDS = 100;
+export const MAX_FIELD_PATH_LENGTH = 1500;
+const FORBIDDEN_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
+/** Assign an own, enumerable data property, never touching the prototype chain. */
+function setOwn(obj, key, value) {
+  Object.defineProperty(obj, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
 
 /**
  * Validate and normalise the `fields` argument.
@@ -21,6 +34,29 @@ export function normalizeFields(fields) {
     );
   }
   const clean = [...new Set(fields.map(f => f.trim()))];
+  if (clean.length > MAX_FIELDS) {
+    throw new Error(
+      `Too many 'fields': ${clean.length} given, maximum is ${MAX_FIELDS}. Select fewer fields or omit 'fields'.`,
+    );
+  }
+  for (const path of clean) {
+    if (path.length > MAX_FIELD_PATH_LENGTH) {
+      throw new Error(
+        `Field path too long (${path.length} chars, maximum ${MAX_FIELD_PATH_LENGTH}). Use a shorter field path.`,
+      );
+    }
+    const parts = path.split(".");
+    if (parts.some(p => p === "")) {
+      throw new Error(
+        `Invalid field path "${path}": contains an empty segment (leading, trailing or doubled dot).`,
+      );
+    }
+    if (parts.some(p => FORBIDDEN_SEGMENTS.has(p))) {
+      throw new Error(
+        `Invalid field path "${path}": segments named __proto__, constructor or prototype are not allowed. Use a different field path.`,
+      );
+    }
+  }
   return clean.length > 0 ? clean : null;
 }
 
@@ -53,7 +89,7 @@ export function applySelect(query, fields) {
 function getPath(obj, parts) {
   let cur = obj;
   for (const p of parts) {
-    if (cur === null || typeof cur !== "object" || !(p in cur)) return { found: false };
+    if (!isPlainObject(cur) || !Object.hasOwn(cur, p)) return { found: false };
     cur = cur[p];
   }
   return { found: true, value: cur };
@@ -63,10 +99,10 @@ function setPath(obj, parts, value) {
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     const p = parts[i];
-    if (cur[p] === null || typeof cur[p] !== "object") cur[p] = {};
+    if (!Object.hasOwn(cur, p) || !isPlainObject(cur[p])) setOwn(cur, p, {});
     cur = cur[p];
   }
-  cur[parts[parts.length - 1]] = value;
+  setOwn(cur, parts[parts.length - 1], value);
 }
 
 /**
@@ -110,7 +146,7 @@ function compactNode(value, path, compacted) {
   if (isPlainObject(value)) {
     const out = {};
     for (const [k, v] of Object.entries(value)) {
-      out[k] = compactNode(v, path ? `${path}.${k}` : k, compacted);
+      setOwn(out, k, compactNode(v, path ? `${path}.${k}` : k, compacted));
     }
     return out;
   }
@@ -189,7 +225,7 @@ export function fitSingleDoc(doc, maxChars) {
   for (const [k, v] of Object.entries(doc.data)) {
     const s = size({ [k]: v });
     if (used + s <= maxChars) {
-      data[k] = v;
+      setOwn(data, k, v);
       used += s;
     } else {
       omittedFields.push(k);
@@ -211,7 +247,7 @@ export function fitSingleDoc(doc, maxChars) {
  */
 export function queryExtras({ compacted, dropped, singleOversize }) {
   return {
-    ...(compacted.length > 0 && { compacted }),
+    ...(compacted.length > 0 && { compacted, partial: true }),
     ...(dropped.length > 0 && { truncated: true, truncatedReason: "maxChars" }),
     ...(singleOversize && {
       hint: "A single document exceeds the response budget. Pass 'fields' to select only the fields you need, or raise 'maxChars'.",
