@@ -1,4 +1,5 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { InputValidationError } from "./errors.js";
 
 /**
  * Typed value decoding for JSON tool input.
@@ -45,7 +46,9 @@ function isPlainObject(v) {
 }
 
 function fail(path, message) {
-  throw new Error(`Invalid typed value at "${path || "<root>"}": ${message}`);
+  throw new InputValidationError(
+    `Invalid typed value at "${path || "<root>"}": ${message}`,
+  );
 }
 
 function parseIsoTimestamp(str, path) {
@@ -75,8 +78,8 @@ function decodeSecondsNanos(obj, path) {
   }
   try {
     return new Timestamp(s, n);
-  } catch (err) {
-    return fail(path, err.message);
+  } catch {
+    return fail(path, "_seconds/_nanoseconds are out of Timestamp range.");
   }
 }
 
@@ -150,6 +153,14 @@ function decode(value, ctx) {
 
   const out = {};
   for (const key of keys) {
+    // JSON.parse creates "__proto__" as an own key; assigning it would swap the
+    // prototype and silently drop the field. Firestore reserves __*__ names anyway.
+    if (key === "__proto__") {
+      fail(
+        ctx.path,
+        'field name "__proto__" is not allowed (Firestore reserves names of the form __name__). Rename the field.',
+      );
+    }
     out[key] = decode(value[key], {
       ...ctx,
       path: ctx.path ? `${ctx.path}.${key}` : key,

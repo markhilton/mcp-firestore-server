@@ -15,7 +15,12 @@ import {
   WRITE_TOOLS,
 } from "./tools/index.js";
 import { buildResponse, buildErrorResponse } from "./helpers/response.js";
-import { isAuthError } from "./helpers/errors.js";
+import {
+  isAuthError,
+  redactMessage,
+  debugEnabled,
+  InputValidationError,
+} from "./helpers/errors.js";
 import { checkUnknownArgs } from "./helpers/args.js";
 import { TARGETS } from "./constants.js";
 
@@ -77,12 +82,12 @@ export async function handleToolCall(name, args, deps) {
 
   try {
     const handler = lookupHandler(name);
-    if (!handler) throw new Error(`Unknown tool: ${name}`);
+    if (!handler) throw new InputValidationError(`Unknown tool: ${name}`);
 
     const readOnly = getReadOnlyMode();
     const isWrite = WRITE_TOOLS.includes(name);
     if (isWrite && readOnly === "all") {
-      throw new Error(
+      throw new InputValidationError(
         `${name} is disabled: server is in read-only mode (MCP_FIRESTORE_READONLY). Use a read tool instead.`,
       );
     }
@@ -90,14 +95,14 @@ export async function handleToolCall(name, args, deps) {
     const definition = deps.toolDefinitions?.find(d => d.name === name);
     if (definition) {
       const problem = checkUnknownArgs(name, args, definition.inputSchema);
-      if (problem) throw new Error(problem);
+      if (problem) throw new InputValidationError(problem);
     }
 
     let { db, target } = lookupDb(
       Object.hasOwn(args, "target") ? args.target : undefined,
     );
     if (isWrite && readOnly === "production" && target === TARGETS.PRODUCTION) {
-      throw new Error(
+      throw new InputValidationError(
         `${name} on the production target is disabled (MCP_FIRESTORE_READONLY=production). Use target "emulator" or a read tool.`,
       );
     }
@@ -117,7 +122,9 @@ export async function handleToolCall(name, args, deps) {
 
     return buildResponse({ ...result, target });
   } catch (error) {
-    console.error("Tool execution error:", error);
+    // Full error objects carry stacks and SDK details; log them only in debug mode.
+    if (debugEnabled()) console.error("Tool execution error:", error);
+    else console.error("Tool execution error:", redactMessage(error?.message ?? error));
     return buildErrorResponse(error);
   }
 }

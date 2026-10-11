@@ -174,3 +174,23 @@ test("typed-values: {$string} forces a plain string in every mode, after coerceV
     /\$string must wrap a string/,
   );
 });
+
+test("decodeDocumentData: rejects a __proto__ key instead of dropping it", () => {
+  const data = JSON.parse('{"__proto__": {"x": 1}, "a": 2}');
+  assert.throws(() => decodeDocumentData(data, CREATE), /__proto__/);
+  const nested = JSON.parse('{"a": {"__proto__": {"x": 1}}}');
+  assert.throws(() => decodeDocumentData(nested, MERGE), /"a".*__proto__/);
+});
+
+test("decodeDocumentData: constructor/prototype keys are ordinary own fields", () => {
+  const out = decodeDocumentData({ constructor: 1, prototype: 2 }, CREATE);
+  assert.equal(Object.getPrototypeOf(out), Object.prototype);
+  assert.deepEqual(Object.keys(out), ["constructor", "prototype"]);
+});
+
+test("decodeDocumentData: out-of-range Timestamp gives the static message", () => {
+  assert.throws(
+    () => decodeDocumentData({ t: { _seconds: 1e15, _nanoseconds: 0 } }, CREATE),
+    /_seconds\/_nanoseconds are out of Timestamp range\./,
+  );
+});

@@ -3,6 +3,8 @@
  * Keeps tool results under the client's token limit instead of failing outright.
  */
 
+import { InputValidationError } from "./errors.js";
+
 export const DEFAULT_MAX_CHARS = 60000;
 export const MIN_MAX_CHARS = 1000;
 export const MAX_MAX_CHARS = 500000;
@@ -29,30 +31,30 @@ function setOwn(obj, key, value) {
 export function normalizeFields(fields) {
   if (fields === undefined || fields === null) return null;
   if (!Array.isArray(fields) || fields.some(f => typeof f !== "string" || !f.trim())) {
-    throw new Error(
+    throw new InputValidationError(
       '\'fields\' must be an array of non-empty field-path strings (e.g. ["title", "author.name"]).',
     );
   }
   const clean = [...new Set(fields.map(f => f.trim()))];
   if (clean.length > MAX_FIELDS) {
-    throw new Error(
+    throw new InputValidationError(
       `Too many 'fields': ${clean.length} given, maximum is ${MAX_FIELDS}. Select fewer fields or omit 'fields'.`,
     );
   }
   for (const path of clean) {
     if (path.length > MAX_FIELD_PATH_LENGTH) {
-      throw new Error(
+      throw new InputValidationError(
         `Field path too long (${path.length} chars, maximum ${MAX_FIELD_PATH_LENGTH}). Use a shorter field path.`,
       );
     }
     const parts = path.split(".");
     if (parts.some(p => p === "")) {
-      throw new Error(
+      throw new InputValidationError(
         `Invalid field path "${path}": contains an empty segment (leading, trailing or doubled dot).`,
       );
     }
     if (parts.some(p => FORBIDDEN_SEGMENTS.has(p))) {
-      throw new Error(
+      throw new InputValidationError(
         `Invalid field path "${path}": segments named __proto__, constructor or prototype are not allowed. Use a different field path.`,
       );
     }
@@ -67,7 +69,7 @@ export function resolveMaxChars(maxChars, env = process.env) {
   if (maxChars !== undefined && maxChars !== null) {
     const n = Number(maxChars);
     if (!Number.isInteger(n) || n < MIN_MAX_CHARS || n > MAX_MAX_CHARS) {
-      throw new Error(
+      throw new InputValidationError(
         `'maxChars' must be an integer between ${MIN_MAX_CHARS} and ${MAX_MAX_CHARS}.`,
       );
     }
