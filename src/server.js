@@ -7,9 +7,17 @@ import {
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import { initFirebase, getDb } from "./firebase.js";
-import { getToolDefinitions, getHandler } from "./tools/index.js";
+import { initFirebase, getDb, resetTarget } from "./firebase.js";
+import {
+  getToolDefinitions,
+  getHandler,
+  getReadOnlyMode,
+  WRITE_TOOLS,
+} from "./tools/index.js";
 import { buildResponse, buildErrorResponse } from "./helpers/response.js";
+import { isAuthError } from "./helpers/errors.js";
+import { checkUnknownArgs } from "./helpers/args.js";
+import { TARGETS } from "./constants.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8"));
@@ -30,6 +38,88 @@ async function testConnection(target) {
     ),
   );
   await Promise.race([testQuery, timeout]);
+}
+
+/** In-flight credential resets, one per target, so concurrent failures share one reset. */
+const inflightResets = new Map();
+
+/**
+ * Reset a target once for any number of concurrent callers. Skips the reset when
+ * the target's current db is no longer the one that failed (someone already reset it).
+ */
+async function resetOnce(target, failedDb, lookupDb, reset) {
+  const pending = inflightResets.get(target);
+  if (pending) {
+    await pending;
+    return;
+  }
+  if (lookupDb(target).db !== failedDb) return;
+  const promise = Promise.resolve(reset(target)).finally(() => {
+    inflightResets.delete(target);
+  });
+  inflightResets.set(target, promise);
+  await promise;
+}
+
+/**
+ * Execute one tool call: validate, enforce read-only mode, run the handler,
+ * and on an auth-class failure reset that target's credentials and retry once.
+ *
+ * @param {string} name
+ * @param {object} args
+ * @param {{toolDefinitions: object[], getDb?: Function, getHandler?: Function, resetTarget?: Function}} deps
+ */
+export async function handleToolCall(name, args, deps) {
+  const lookupDb = deps.getDb ?? getDb;
+  const lookupHandler = deps.getHandler ?? getHandler;
+  const reset = deps.resetTarget ?? resetTarget;
+  args = args ?? {};
+
+  try {
+    const handler = lookupHandler(name);
+    if (!handler) throw new Error(`Unknown tool: ${name}`);
+
+    const readOnly = getReadOnlyMode();
+    const isWrite = WRITE_TOOLS.includes(name);
+    if (isWrite && readOnly === "all") {
+      throw new Error(
+        `${name} is disabled: server is in read-only mode (MCP_FIRESTORE_READONLY). Use a read tool instead.`,
+      );
+    }
+
+    const definition = deps.toolDefinitions?.find(d => d.name === name);
+    if (definition) {
+      const problem = checkUnknownArgs(name, args, definition.inputSchema);
+      if (problem) throw new Error(problem);
+    }
+
+    let { db, target } = lookupDb(
+      Object.hasOwn(args, "target") ? args.target : undefined,
+    );
+    if (isWrite && readOnly === "production" && target === TARGETS.PRODUCTION) {
+      throw new Error(
+        `${name} on the production target is disabled (MCP_FIRESTORE_READONLY=production). Use target "emulator" or a read tool.`,
+      );
+    }
+
+    let result;
+    try {
+      result = await handler(args, db, target);
+    } catch (error) {
+      if (!isAuthError(error)) throw error;
+      console.error(
+        `[${target}] Auth error, re-initialising credentials and retrying once`,
+      );
+      await resetOnce(target, db, lookupDb, reset);
+      ({ db } = lookupDb(target));
+      result = await handler(args, db, target);
+    }
+
+    return buildResponse({ ...result, target });
+  } catch (error) {
+    console.error("Tool execution error:", error);
+    return buildErrorResponse(error);
+  }
 }
 
 export async function startServer() {
@@ -85,20 +175,7 @@ export async function startServer() {
       const { name, arguments: args } = request.params;
       console.error(`Tool called: ${name}`);
 
-      try {
-        const handler = getHandler(name);
-        if (!handler) {
-          throw new Error(`Unknown tool: ${name}`);
-        }
-
-        const { db, target } = getDb(args.target);
-        const result = await handler(args, db, target);
-
-        return buildResponse({ ...result, target });
-      } catch (error) {
-        console.error("Tool execution error:", error);
-        return buildErrorResponse(error);
-      }
+      return handleToolCall(name, args, { toolDefinitions });
     });
 
     console.error("Request handlers set up");

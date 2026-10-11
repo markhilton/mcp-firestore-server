@@ -1,6 +1,8 @@
 /**
  * Coerce string values to appropriate Firestore types.
  * Handles: numbers, booleans, null, arrays, and JSON objects.
+ * To force a string (e.g. a digit-only zip code), send {"$string": "33101"};
+ * it is JSON-parsed here and unwrapped by typed-values.js.
  */
 export function coerceValue(value) {
   if (typeof value !== "string") return value;

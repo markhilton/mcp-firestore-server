@@ -3,6 +3,7 @@ import { decodeQueryValue } from "../helpers/typed-values.js";
 import {
   COLLECTION_PROPERTY,
   PAGINATION_PROPERTIES,
+  OUTPUT_PROPERTIES,
   WHERE_CLAUSES_PROPERTY,
 } from "../helpers/schema.js";
 import {
@@ -12,12 +13,13 @@ import {
   applyPagination,
   executeQuery,
 } from "../helpers/query.js";
+import { applySelect } from "../helpers/output.js";
 import { validateCollectionPath } from "../helpers/validate.js";
 
 export const definition = {
   name: "query_with_where",
   description:
-    "Query a collection with where conditions. Supports single or multiple clauses, value type coercion (including Timestamp values), and pagination. Supports subcollection paths.",
+    "Query a collection with where conditions. Supports single or multiple clauses, value type coercion (including Timestamp values), and pagination. Supports subcollection paths. Paginate with startAfter=lastDocId. Output is capped (default 60000 chars): if values were compacted the response has `partial: true` (pass `raw: true` for full values); if `truncated` is true, fetch the next page with startAfter=lastDocId, or pass `fields` to select fewer fields.",
   inputSchema: {
     type: "object",
     properties: {
@@ -36,9 +38,10 @@ export const definition = {
       value: {
         type: "string",
         description:
-          'Value to compare (legacy single-clause format). Numbers, booleans, and arrays are auto-coerced; JSON-encoded Timestamps such as {"$timestamp": "2026-10-11T01:17:00Z"} are decoded.',
+          'Value to compare (legacy single-clause format). Numbers, booleans, and arrays are auto-coerced; JSON-encoded Timestamps such as {"$timestamp": "2026-10-11T01:17:00Z"} are decoded. To force a string that looks like a number/boolean/null (e.g. a zip code), pass {"$string": "33101"}.',
       },
       ...PAGINATION_PROPERTIES,
+      ...OUTPUT_PROPERTIES,
     },
     required: ["collection"],
   },
@@ -63,10 +66,11 @@ export async function handler(args, db) {
     );
   }
 
+  query = applySelect(query, args.fields);
   query = applyOrderBy(query, args);
   query = await applyPagination(query, db, args.collection, args.startAfter);
 
-  const { docs, lastDocId } = await executeQuery(query, args.limit);
+  const { docs, lastDocId, extras } = await executeQuery(query, args.limit, args);
 
   return {
     collection: args.collection,
@@ -76,5 +80,6 @@ export async function handler(args, db) {
     count: docs.length,
     documents: docs,
     ...(lastDocId && { lastDocId }),
+    ...extras,
   };
 }

@@ -1,3 +1,5 @@
+import { mapError, redactMessage } from "./errors.js";
+
 /**
  * Build a standard MCP tool response.
  */
@@ -25,8 +27,10 @@ function debugEnabled() {
  * environment variable is set.
  */
 export function buildErrorResponse(error) {
-  const payload = { error: error.message };
-  if (debugEnabled()) {
+  const debug = debugEnabled();
+  const message = String(error?.message ?? error);
+  const payload = { error: debug ? message : redactMessage(message), ...mapError(error) };
+  if (debug) {
     payload.stack = error.stack;
   }
 

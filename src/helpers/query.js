@@ -1,5 +1,7 @@
 import { coerceValue } from "./coerce-value.js";
 import { decodeQueryValue } from "./typed-values.js";
+import { finalizeQueryDocs } from "./output.js";
+import { resolveLimit } from "./validate.js";
 
 /**
  * Valid Firestore where operators.
@@ -13,6 +15,7 @@ export const WHERE_OPERATORS = [
   ">=",
   "array-contains",
   "in",
+  "not-in",
   "array-contains-any",
 ];
 
@@ -57,19 +60,19 @@ export async function applyPagination(query, db, collection, startAfterId) {
 
 /**
  * Execute a query with limit and map results to plain objects.
- * Returns { docs, lastDocId } for response building.
+ * `options` ({ fields, raw, maxChars }) enables compaction and the response
+ * budget. Returns { docs, lastDocId, extras }; lastDocId is the last RETURNED
+ * doc so startAfter continues correctly, and extras holds compacted/truncated.
  */
-export async function executeQuery(query, limit) {
-  const snapshot = await query.limit(parseInt(limit, 10) || 10).get();
+export async function executeQuery(query, limit, options = {}) {
+  const snapshot = await query.limit(resolveLimit(limit)).get();
 
-  const docs = snapshot.docs.map(doc => ({
+  const rawDocs = snapshot.docs.map(doc => ({
     id: doc.id,
     data: doc.data(),
   }));
 
-  const lastDocId = docs.length > 0 ? docs[docs.length - 1].id : null;
-
-  return { docs, lastDocId };
+  return finalizeQueryDocs(rawDocs, options);
 }
 
 /**

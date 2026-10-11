@@ -10,13 +10,15 @@ npx @nerd305/mcp-firestore-server
 
 ## Configuration
 
-| Environment Variable                           | Purpose                                        | Required?                                        |
-| ---------------------------------------------- | ---------------------------------------------- | ------------------------------------------------ |
-| `GOOGLE_CLOUD_PROJECT` / `FIREBASE_PROJECT_ID` | Project ID                                     | Yes (or auto-detected from gcloud / .firebaserc) |
-| `FIRESTORE_EMULATOR_HOST`                      | Emulator address (e.g. `127.0.0.1:8080`)       | No (enables emulator target)                     |
-| `GOOGLE_APPLICATION_CREDENTIALS`               | Service account key path                       | No (enables production target)                   |
-| `MCP_FIRESTORE_DEFAULT_TARGET`                 | Default target: `"emulator"` or `"production"` | No (auto-resolved)                               |
-| `MCP_FIRESTORE_DEBUG` / `DEBUG`                | Include stack traces in error responses        | No (off by default)                              |
+| Environment Variable                           | Purpose                                                                                | Required?                                        |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `GOOGLE_CLOUD_PROJECT` / `FIREBASE_PROJECT_ID` | Project ID                                                                             | Yes (or auto-detected from gcloud / .firebaserc) |
+| `FIRESTORE_EMULATOR_HOST`                      | Emulator address (e.g. `127.0.0.1:8080`)                                               | No (enables emulator target)                     |
+| `GOOGLE_APPLICATION_CREDENTIALS`               | Service account key path                                                               | No (enables production target)                   |
+| `MCP_FIRESTORE_DEFAULT_TARGET`                 | Default target: `"emulator"` or `"production"`                                         | No (auto-resolved)                               |
+| `MCP_FIRESTORE_READONLY`                       | `1`/`all`: hide and reject write tools. `production`: reject writes to production only | No                                               |
+| `MCP_FIRESTORE_MAX_RESPONSE_CHARS`             | Default response budget for document payloads (default `60000`)                        | No                                               |
+| `MCP_FIRESTORE_DEBUG` / `DEBUG`                | Include stack traces in error responses                                                | No (off by default)                              |
 
 At least one of `FIRESTORE_EMULATOR_HOST` or `GOOGLE_APPLICATION_CREDENTIALS` must be set. When both are configured, the server connects to both endpoints simultaneously and defaults to the emulator.
 
@@ -217,6 +219,24 @@ Delete a document.
   target?: "emulator" | "production";
 }
 ```
+
+## Large results: projection, compaction, budget
+
+Read tools (`query_collection`, `query_with_where`, `get_document`, `batch_get`) accept:
+
+- `fields`: field paths to return (dotted paths allowed). Queries use Firestore `select()`.
+- `raw`: `true` disables compaction. By default, numeric arrays longer than 64 items (for example embedding vectors) collapse to a placeholder, and strings longer than 4000 characters are truncated. Every compacted path is listed in `compacted`.
+- `maxChars`: response budget for this call (1000–500000). Queries drop trailing documents to fit and set `truncated: true`; continue with `startAfter: <lastDocId>`. Single documents list dropped fields in `omittedFields`, and `batch_get` lists dropped IDs in `omittedIds`.
+
+## Errors and recovery
+
+Errors keep the `error` message and add a `code` and `hint` where the cause is known:
+
+- `AUTH_EXPIRED`: Application Default Credentials expired. Run `gcloud auth application-default login`. The server re-creates the client and retries once, so no restart is needed.
+- `FAILED_PRECONDITION_INDEX`: the query needs a composite index; `indexUrl` links to create it.
+- Unknown arguments are rejected with a suggestion, for example `documentId` → `docId`.
+
+Tools carry MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`) so clients can tell reads from writes.
 
 ## Typed values (Timestamps and field sentinels)
 

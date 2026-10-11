@@ -36,7 +36,7 @@ export async function handler(args, db, target) {
   validateCollectionPath(args.collection);
   assertNonEmptyData(args.data);
 
-  const merge = args.merge !== false;
+  const merge = !(Object.hasOwn(args, "merge") && args.merge === false);
   const data = decodeDocumentData(
     args.data,
     merge ? DECODE_MODES.MERGE : DECODE_MODES.UPDATE,

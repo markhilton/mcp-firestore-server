@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { execSync } from "child_process";
+import { execSync } from "child_process"; // secret-scan:allow — fixed `gcloud config get-value project`, no interpolation
 
 /**
  * Auto-detect Google Cloud Project ID from environment, gcloud config,

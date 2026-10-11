@@ -27,3 +27,13 @@ test("assertWriteAllowed: allows production writes with confirm:true", () => {
 test("assertWriteAllowed: undefined target is treated as non-production", () => {
   assert.doesNotThrow(() => assertWriteAllowed(undefined, {}));
 });
+
+test("assertWriteAllowed: inherited confirm (prototype pollution) does not authorise", () => {
+  Object.prototype.confirm = true;
+  try {
+    assert.throws(() => assertWriteAllowed(TARGETS.PRODUCTION, {}), /confirm:true/);
+    assert.doesNotThrow(() => assertWriteAllowed(TARGETS.PRODUCTION, { confirm: true }));
+  } finally {
+    delete Object.prototype.confirm;
+  }
+});

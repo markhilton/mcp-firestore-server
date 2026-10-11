@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase-admin/app";
+import { initializeApp, getApp, deleteApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { detectProjectId } from "./config.js";
 import { TARGETS } from "./constants.js";
@@ -7,6 +7,65 @@ let emulatorDb = null;
 let productionDb = null;
 let defaultTarget = null;
 let availableTargets = [];
+let activeProjectId = null;
+let activeEmulatorHost = null;
+
+/** Build the emulator app/db. FIRESTORE_EMULATOR_HOST must be set. */
+function createEmulatorDb(projectId, emulatorHost) {
+  process.env.FIRESTORE_EMULATOR_HOST = emulatorHost;
+  return getFirestore(initializeApp({ projectId }, TARGETS.EMULATOR));
+}
+
+/** Build the production app/db with FIRESTORE_EMULATOR_HOST hidden, then restore it. */
+function createProductionDb(projectId) {
+  const savedHost = process.env.FIRESTORE_EMULATOR_HOST;
+  delete process.env.FIRESTORE_EMULATOR_HOST;
+  try {
+    return getFirestore(initializeApp({ projectId }, TARGETS.PRODUCTION));
+  } finally {
+    if (savedHost) process.env.FIRESTORE_EMULATOR_HOST = savedHost;
+  }
+}
+
+/**
+ * Delete and re-create the firebase-admin app for one target, so expired
+ * credentials are re-read. Leaves the other target untouched.
+ */
+export function resetTarget(target) {
+  const pending = resetsInFlight.get(target);
+  if (pending) return pending;
+  const promise = doResetTarget(target).finally(() => resetsInFlight.delete(target));
+  resetsInFlight.set(target, promise);
+  return promise;
+}
+
+/** One in-flight reset per target; concurrent callers share it. */
+const resetsInFlight = new Map();
+
+async function doResetTarget(target) {
+  if (target !== TARGETS.EMULATOR && target !== TARGETS.PRODUCTION) {
+    throw new Error(`Unknown target "${target}".`);
+  }
+  if (!availableTargets.includes(target)) {
+    throw new Error(`Target "${target}" is not initialised; cannot reset it.`);
+  }
+  try {
+    await deleteApp(getApp(target));
+  } catch {
+    // App already gone or failing to shut down: re-create regardless.
+  }
+  if (target === TARGETS.EMULATOR) {
+    if (!activeEmulatorHost) {
+      throw new Error(
+        "Cannot reset the emulator target: no emulator host was captured at startup. Set FIRESTORE_EMULATOR_HOST and restart the server.",
+      );
+    }
+    emulatorDb = createEmulatorDb(activeProjectId, activeEmulatorHost);
+  } else {
+    productionDb = createProductionDb(activeProjectId);
+  }
+  console.error(`[${target}] Firestore re-initialised`);
+}
 
 /**
  * Initialize Firebase with dual-endpoint support.
@@ -25,6 +84,7 @@ export function initFirebase() {
   productionDb = null;
   defaultTarget = null;
   availableTargets = [];
+  activeEmulatorHost = null;
 
   const projectId = detectProjectId();
 
@@ -47,28 +107,22 @@ export function initFirebase() {
     );
   }
 
+  activeProjectId = projectId;
+  activeEmulatorHost = emulatorHost || null;
   console.error(`Project ID: ${projectId}`);
 
   // Initialize emulator target
   if (emulatorHost) {
-    process.env.FIRESTORE_EMULATOR_HOST = emulatorHost;
-    const app = initializeApp({ projectId }, TARGETS.EMULATOR);
-    emulatorDb = getFirestore(app);
+    emulatorDb = createEmulatorDb(projectId, emulatorHost);
     availableTargets.push(TARGETS.EMULATOR);
     console.error(`[${TARGETS.EMULATOR}] Firestore initialized -> ${emulatorHost}`);
   }
 
   // Initialize production target
   if (hasCredentials) {
-    const savedHost = process.env.FIRESTORE_EMULATOR_HOST;
-    delete process.env.FIRESTORE_EMULATOR_HOST;
-
-    const app = initializeApp({ projectId }, TARGETS.PRODUCTION);
-    productionDb = getFirestore(app);
+    productionDb = createProductionDb(projectId);
     availableTargets.push(TARGETS.PRODUCTION);
     console.error(`[${TARGETS.PRODUCTION}] Firestore initialized`);
-
-    if (savedHost) process.env.FIRESTORE_EMULATOR_HOST = savedHost;
   }
 
   // Resolve default target

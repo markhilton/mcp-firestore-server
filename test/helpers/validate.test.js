@@ -5,6 +5,7 @@ import {
   assertNonEmptyData,
   assertBatchSize,
   DEFAULT_MAX_BATCH,
+  resolveLimit,
 } from "../../src/helpers/validate.js";
 
 test("validateCollectionPath: accepts simple and nested collection paths", () => {
@@ -38,4 +39,15 @@ test("assertBatchSize: requires a non-empty array within the limit", () => {
   assert.throws(() => assertBatchSize("a"), /non-empty array/);
   const tooMany = Array.from({ length: DEFAULT_MAX_BATCH + 1 }, (_, i) => `id-${i}`);
   assert.throws(() => assertBatchSize(tooMany), /maximum is/);
+});
+
+test("resolveLimit: default, valid values and rejections", () => {
+  assert.equal(resolveLimit(undefined), 10);
+  assert.equal(resolveLimit(null), 10);
+  assert.equal(resolveLimit(1), 1);
+  assert.equal(resolveLimit("25"), 25);
+  assert.equal(resolveLimit(1000), 1000);
+  for (const bad of [0, -1, 1001, 1.5, "abc", NaN, 1e9, {}]) {
+    assert.throws(() => resolveLimit(bad), /between 1 and 1000/, String(bad));
+  }
 });

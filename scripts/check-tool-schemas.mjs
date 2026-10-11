@@ -19,9 +19,34 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { getToolDefinitions } from "../src/tools/index.js";
 import { findSchemaViolations, SEVERITY } from "./lib/schema-compliance.js";
 
-// Exercise the schemas exactly as the server emits them, including the
-// auto-injected `target` enum.
-const defs = getToolDefinitions(["emulator", "production"], "emulator");
+// Exercise the schemas exactly as the server emits them, across every
+// combination of targets, default target and read-only mode.
+const BOTH = ["emulator", "production"];
+const VARIANTS = [
+  { label: "both, default emulator", targets: BOTH, def: "emulator" },
+  { label: "both, default production", targets: BOTH, def: "production" },
+  { label: "emulator only", targets: ["emulator"], def: "emulator" },
+  { label: "production only", targets: ["production"], def: "production" },
+  { label: "readonly=1", targets: BOTH, def: "emulator", readonly: "1" },
+  {
+    label: "readonly=production",
+    targets: BOTH,
+    def: "emulator",
+    readonly: "production",
+  },
+];
+
+function variantDefs(v) {
+  const prev = process.env.MCP_FIRESTORE_READONLY;
+  if (v.readonly) process.env.MCP_FIRESTORE_READONLY = v.readonly;
+  else delete process.env.MCP_FIRESTORE_READONLY;
+  try {
+    return getToolDefinitions(v.targets, v.def);
+  } finally {
+    if (prev === undefined) delete process.env.MCP_FIRESTORE_READONLY;
+    else process.env.MCP_FIRESTORE_READONLY = prev;
+  }
+}
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 
@@ -29,55 +54,68 @@ let errorCount = 0;
 let warnCount = 0;
 const rows = [];
 
-for (const def of defs) {
-  const schema = def.inputSchema;
-  const findings = findSchemaViolations(schema, `#(${def.name})`);
-  const errors = findings.filter(f => f.severity === SEVERITY.ERROR);
-  const warns = findings.filter(f => f.severity === SEVERITY.WARN);
+for (const variant of VARIANTS) {
+  for (const def of variantDefs(variant)) {
+    const schema = def.inputSchema;
+    const findings = findSchemaViolations(schema, `#(${def.name})`);
+    const errors = findings.filter(f => f.severity === SEVERITY.ERROR);
+    const warns = findings.filter(f => f.severity === SEVERITY.WARN);
 
-  // Authoritative Ajv compile (catches anything the scanner doesn't enumerate).
-  let ajvError = null;
-  try {
-    ajv.compile(schema);
-  } catch (e) {
-    ajvError = e.message;
-  }
+    // Authoritative Ajv compile (catches anything the scanner doesn't enumerate).
+    let ajvError = null;
+    try {
+      ajv.compile(schema);
+    } catch (e) {
+      ajvError = e.message;
+    }
 
-  // A top-level tool schema must be an object (Anthropic requirement).
-  if (schema?.type !== "object") {
-    errors.push({
-      severity: SEVERITY.ERROR,
-      keyword: "type",
-      path: `#(${def.name})`,
-      message: `Root inputSchema.type must be "object" (got ${JSON.stringify(schema?.type)}).`,
-      fix: 'Set the top-level schema `type` to "object".',
+    // A top-level tool schema must be an object (Anthropic requirement).
+    if (schema?.type !== "object") {
+      errors.push({
+        severity: SEVERITY.ERROR,
+        keyword: "type",
+        path: `#(${def.name})`,
+        message: `Root inputSchema.type must be "object" (got ${JSON.stringify(schema?.type)}).`,
+        fix: 'Set the top-level schema `type` to "object".',
+      });
+    }
+
+    const failed = errors.length > 0 || ajvError !== null;
+    if (failed) errorCount++;
+    warnCount += warns.length;
+    rows.push({
+      name: `${def.name} [${variant.label}]`,
+      failed,
+      errors,
+      warns,
+      ajvError,
     });
   }
-
-  const failed = errors.length > 0 || ajvError !== null;
-  if (failed) errorCount++;
-  warnCount += warns.length;
-  rows.push({ name: def.name, failed, errors, warns, ajvError });
 }
 
 // --- Report ---
-const pad = s => s.padEnd(20);
 console.log("\nMCP tool inputSchema compliance (JSON Schema Draft 2020-12)\n");
-for (const r of rows) {
-  const status = r.failed ? "FAIL" : r.warns.length ? "WARN" : "PASS";
-  const mark = r.failed ? "✖" : r.warns.length ? "▲" : "✔";
-  console.log(`  ${mark} ${status}  ${pad(r.name)}`);
-  if (r.ajvError) {
-    console.log(`        ↳ ajv: ${r.ajvError.split("\n")[0]}`);
-  }
-  for (const v of [...r.errors, ...r.warns]) {
-    console.log(`        ↳ [${v.severity}] ${v.path} (${v.keyword}): ${v.message}`);
-    console.log(`            fix: ${v.fix}`);
+for (const variant of VARIANTS) {
+  const suffix = `[${variant.label}]`;
+  const vrows = rows.filter(r => r.name.endsWith(suffix));
+  const bad = vrows.filter(r => r.failed).length;
+  const warn = vrows.filter(r => !r.failed && r.warns.length).length;
+  const mark = bad ? "✖" : warn ? "▲" : "✔";
+  console.log(
+    `  ${mark} ${variant.label.padEnd(26)} ${vrows.length} tools, ${bad} failing, ${warn} warning`,
+  );
+  for (const r of vrows.filter(r => r.failed || r.warns.length)) {
+    console.log(`      ${r.failed ? "FAIL" : "WARN"} ${r.name}`);
+    if (r.ajvError) console.log(`        ↳ ajv: ${r.ajvError.split("\n")[0]}`);
+    for (const v of [...r.errors, ...r.warns]) {
+      console.log(`        ↳ [${v.severity}] ${v.path} (${v.keyword}): ${v.message}`);
+      console.log(`            fix: ${v.fix}`);
+    }
   }
 }
 
 console.log(
-  `\n${rows.length} tools checked — ${errorCount} failing, ${warnCount} warning(s).`,
+  `\n${rows.length} tool schemas checked across ${VARIANTS.length} variants — ${errorCount} failing, ${warnCount} warning(s).`,
 );
 
 if (errorCount > 0) {

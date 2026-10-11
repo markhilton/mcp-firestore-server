@@ -13,7 +13,8 @@ import { makeDb } from "../fakes/firestore.js";
 test("WHERE_OPERATORS lists the supported Firestore operators", () => {
   assert.ok(WHERE_OPERATORS.includes("=="));
   assert.ok(WHERE_OPERATORS.includes("array-contains-any"));
-  assert.equal(WHERE_OPERATORS.length, 9);
+  assert.ok(WHERE_OPERATORS.includes("not-in"));
+  assert.equal(WHERE_OPERATORS.length, 10);
 });
 
 test("applyWhereClauses: coerces values and chains where() calls", () => {
@@ -157,5 +158,17 @@ test("applyWhereClauses: decodes JSON-encoded Timestamp values", async () => {
   assert.throws(
     () => applyWhereClauses(db.collection("x"), [["a", "==", '{"$delete": true}']]),
     /cannot be used in a query/,
+  );
+});
+
+test("executeQuery: rejects out-of-range limits", async () => {
+  const db = makeDb({ items: [{ id: "a", n: 1 }] });
+  await assert.rejects(
+    () => executeQuery(db.collection("items"), 1001),
+    /between 1 and 1000/,
+  );
+  await assert.rejects(
+    () => executeQuery(db.collection("items"), 0),
+    /between 1 and 1000/,
   );
 });

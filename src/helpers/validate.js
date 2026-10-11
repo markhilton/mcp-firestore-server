@@ -1,3 +1,26 @@
+export const DEFAULT_LIMIT = 10;
+export const MAX_LIMIT = 1000;
+
+/**
+ * Validate a query `limit`. Undefined/null yields the default (10); anything
+ * else must be an integer (or integer string) in 1..1000.
+ *
+ * @param {unknown} limit
+ * @returns {number}
+ * @throws {Error} When limit is not an integer within range.
+ */
+export function resolveLimit(limit) {
+  if (limit === undefined || limit === null || limit === "") return DEFAULT_LIMIT;
+  const n =
+    typeof limit === "string" && /^\s*\d+\s*$/.test(limit) ? Number(limit) : limit;
+  if (!Number.isInteger(n) || n < 1 || n > MAX_LIMIT) {
+    throw new Error(
+      `Invalid limit: must be an integer between 1 and ${MAX_LIMIT}. Use startAfter=lastDocId to page through more documents.`,
+    );
+  }
+  return n;
+}
+
 /** Default maximum number of documents fetchable in a single batch_get. */
 export const DEFAULT_MAX_BATCH = 300;
 
