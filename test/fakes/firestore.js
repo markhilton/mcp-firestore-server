@@ -29,6 +29,8 @@ function evalOperator(fieldValue, operator, value) {
       return Array.isArray(fieldValue) && fieldValue.includes(value);
     case "in":
       return Array.isArray(value) && value.includes(fieldValue);
+    case "not-in":
+      return Array.isArray(value) && !value.includes(fieldValue);
     case "array-contains-any":
       return (
         Array.isArray(fieldValue) &&
@@ -104,6 +106,7 @@ class Query {
     this._orderBy = state._orderBy || null;
     this._startAfter = state._startAfter || null;
     this._limit = state._limit || null;
+    this._select = state._select || null;
   }
   _clone(patch) {
     return new Query(this.db, this.collectionPath, {
@@ -111,6 +114,7 @@ class Query {
       _orderBy: this._orderBy,
       _startAfter: this._startAfter,
       _limit: this._limit,
+      _select: this._select,
       ...patch,
     });
   }
@@ -122,6 +126,10 @@ class Query {
   }
   startAfter(doc) {
     return this._clone({ _startAfter: doc.id });
+  }
+  select(...fields) {
+    this.db.selectCalls.push(fields);
+    return this._clone({ _select: fields });
   }
   limit(n) {
     return this._clone({ _limit: n });
@@ -164,7 +172,13 @@ class Query {
   }
   async get() {
     const rows = this._rows();
-    const docs = rows.map(r => new DocumentSnapshot(r.id, r.data));
+    const pick = data =>
+      this._select
+        ? Object.fromEntries(
+            Object.entries(data).filter(([k]) => this._select.includes(k)),
+          )
+        : data;
+    const docs = rows.map(r => new DocumentSnapshot(r.id, pick(r.data)));
     return { docs, size: docs.length, empty: docs.length === 0 };
   }
   count() {
@@ -185,6 +199,7 @@ export class FakeFirestore {
     // data: { "collection/path": { docId: { ...fields } } }
     this.data = {};
     this.writes = [];
+    this.selectCalls = [];
     this._nextId = 1;
     for (const [path, docs] of Object.entries(seed)) {
       this.data[path] = {};
@@ -201,7 +216,9 @@ export class FakeFirestore {
     const id = parts.pop();
     return new DocumentReference(this, parts.join("/"), id);
   }
-  async getAll(...refs) {
+  async getAll(...args) {
+    // Trailing options object ({ fieldMask }) is accepted and ignored.
+    const refs = args.filter(a => typeof a?.get === "function");
     return Promise.all(refs.map(ref => ref.get()));
   }
   async listCollections() {

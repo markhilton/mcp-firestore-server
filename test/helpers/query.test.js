@@ -13,7 +13,8 @@ import { makeDb } from "../fakes/firestore.js";
 test("WHERE_OPERATORS lists the supported Firestore operators", () => {
   assert.ok(WHERE_OPERATORS.includes("=="));
   assert.ok(WHERE_OPERATORS.includes("array-contains-any"));
-  assert.equal(WHERE_OPERATORS.length, 9);
+  assert.ok(WHERE_OPERATORS.includes("not-in"));
+  assert.equal(WHERE_OPERATORS.length, 10);
 });
 
 test("applyWhereClauses: coerces values and chains where() calls", () => {

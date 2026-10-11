@@ -159,3 +159,18 @@ test("decodeQueryValue: decodes timestamps (incl. arrays) and rejects sentinels"
     /cannot be used in a query/,
   );
 });
+
+test("typed-values: {$string} forces a plain string in every mode, after coerceValue", async () => {
+  const { coerceValue } = await import("../../src/helpers/coerce-value.js");
+  const q = decodeQueryValue(coerceValue('{"$string": "33101"}'), "zip");
+  assert.strictEqual(q, "33101");
+  assert.strictEqual(
+    decodeDocumentData({ zip: { $string: "33101" } }, CREATE).zip,
+    "33101",
+  );
+  assert.deepEqual(decodeQueryValue([{ $string: "1" }, 2], "f"), ["1", 2]);
+  assert.throws(
+    () => decodeQueryValue({ $string: 5 }, "zip"),
+    /\$string must wrap a string/,
+  );
+});

@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.2.0 — 2026-10-10
+
+Driven by a review of 1,188 real Claude Code tool calls, about 20% of which failed.
+
+### Added
+
+- Output control on read tools: `fields` projection (Firestore `select()` for queries), default compaction of long numeric arrays and long strings (`raw: true` opts out, `compacted` lists affected paths), and a response budget (`maxChars`, env `MCP_FIRESTORE_MAX_RESPONSE_CHARS`, default 60000) that truncates with `truncated: true` and a correct `lastDocId` for pagination.
+- `not-in` where operator.
+- `{"$string": "..."}` typed value to force a string in where clauses and writes (plain `"33101"` is still coerced to a number).
+- Structured errors: `code` + `hint` for expired credentials (`AUTH_EXPIRED`), missing indexes (`FAILED_PRECONDITION_INDEX` with `indexUrl`), and descending key scans.
+- Automatic credential recovery: on an auth error the target's client is re-created and the call retried once, so `gcloud auth application-default login` works without restarting the server.
+- Unknown-argument check with suggestions (for example `documentId` → `docId`).
+- MCP tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `title`).
+- Read-only mode: `MCP_FIRESTORE_READONLY=1` hides write tools; `=production` rejects production writes only.
+
+### Changed
+
+- Read responses compact large values by default. Pass `raw: true` for the previous output.
+
 ## 3.1.0 — 2026-10-10
 
 ### Added

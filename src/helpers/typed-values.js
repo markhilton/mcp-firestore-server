@@ -11,6 +11,8 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
  *   {"$serverTimestamp": true}          -> FieldValue.serverTimestamp()
  *   {"$delete": true}                   -> FieldValue.delete()  (update/merge only)
  *   {"$increment": n}                   -> FieldValue.increment(n)
+ *   {"$string": "33101"}                -> the plain string (escape for digit-only/"true" strings;
+ *                                          allowed in every mode, incl. queries)
  *
  * Bare ISO strings are deliberately NOT converted: that would silently change
  * the type of ordinary string fields.
@@ -24,7 +26,13 @@ export const DECODE_MODES = Object.freeze({
   QUERY: "query", // where() values: Timestamps only, no sentinels
 });
 
-const TAGS = new Set(["$timestamp", "$serverTimestamp", "$delete", "$increment"]);
+const TAGS = new Set([
+  "$string",
+  "$timestamp",
+  "$serverTimestamp",
+  "$delete",
+  "$increment",
+]);
 
 const MAX_NANOS = 999_999_999;
 
@@ -75,6 +83,11 @@ function decodeSecondsNanos(obj, path) {
 function decodeTagged(tag, arg, ctx) {
   const { mode, path, inArray, depth } = ctx;
 
+  if (tag === "$string") {
+    if (typeof arg !== "string")
+      fail(path, '$string must wrap a string, e.g. {"$string": "33101"}.');
+    return arg;
+  }
   if (tag === "$timestamp") return parseIsoTimestamp(arg, path);
 
   // Everything below is a write sentinel.
