@@ -14,9 +14,7 @@ test("buildResponse: wraps data as pretty-printed JSON text content", () => {
 
 test("buildErrorResponse: sets isError and omits stack by default", () => {
   const prevDebug = process.env.MCP_FIRESTORE_DEBUG;
-  const prevDebugAlt = process.env.DEBUG;
   delete process.env.MCP_FIRESTORE_DEBUG;
-  delete process.env.DEBUG;
   try {
     const res = buildErrorResponse(new Error("boom"));
 
@@ -26,7 +24,6 @@ test("buildErrorResponse: sets isError and omits stack by default", () => {
     assert.equal(parsed.stack, undefined);
   } finally {
     if (prevDebug !== undefined) process.env.MCP_FIRESTORE_DEBUG = prevDebug;
-    if (prevDebugAlt !== undefined) process.env.DEBUG = prevDebugAlt;
   }
 });
 
@@ -40,5 +37,24 @@ test("buildErrorResponse: includes stack when MCP_FIRESTORE_DEBUG is set", () =>
   } finally {
     if (prev === undefined) delete process.env.MCP_FIRESTORE_DEBUG;
     else process.env.MCP_FIRESTORE_DEBUG = prev;
+  }
+});
+
+test("buildErrorResponse: generic DEBUG alone does not enable stack or skip redaction", () => {
+  const prev = process.env.DEBUG;
+  const prevOwn = process.env.MCP_FIRESTORE_DEBUG;
+  delete process.env.MCP_FIRESTORE_DEBUG;
+  process.env.DEBUG = "1";
+  try {
+    const parsed = JSON.parse(
+      buildErrorResponse(new Error("failed at /Users/me/secrets/key.json")).content[0]
+        .text,
+    );
+    assert.equal(parsed.stack, undefined);
+    assert.equal(parsed.error, "failed at [redacted path]");
+  } finally {
+    if (prev === undefined) delete process.env.DEBUG;
+    else process.env.DEBUG = prev;
+    if (prevOwn !== undefined) process.env.MCP_FIRESTORE_DEBUG = prevOwn;
   }
 });

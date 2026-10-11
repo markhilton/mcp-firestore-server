@@ -1,7 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mapError, isAuthError } from "../../src/helpers/errors.js";
+import {
+  mapError,
+  isAuthError,
+  redactMessage,
+  InputValidationError,
+  debugEnabled,
+} from "../../src/helpers/errors.js";
 import { buildErrorResponse } from "../../src/helpers/response.js";
+import { validateCollectionPath } from "../../src/helpers/validate.js";
 import { checkUnknownArgs } from "../../src/helpers/args.js";
 
 const INDEX_MSG =
@@ -39,7 +46,6 @@ test("mapError: descending key scan and unrelated errors", () => {
 
 test("buildErrorResponse: merges mapped fields, keeps error, no stack", () => {
   delete process.env.MCP_FIRESTORE_DEBUG;
-  delete process.env.DEBUG;
   const parsed = JSON.parse(buildErrorResponse(new Error(INDEX_MSG)).content[0].text);
   assert.equal(parsed.error, INDEX_MSG);
   assert.equal(parsed.code, "FAILED_PRECONDITION_INDEX");
@@ -103,7 +109,6 @@ test("mapError: missing credential file is AUTH_EXPIRED", () => {
 
 test("buildErrorResponse: redacts paths, accounts, tokens, keys unless debug", () => {
   delete process.env.MCP_FIRESTORE_DEBUG;
-  delete process.env.DEBUG;
   const msg =
     "The file at /Users/me/secrets/key.json does not exist; C:\\Users\\me\\key.json; " +
     "svc@proj.iam.gserviceaccount.com; ya29.a0AbCdEf-123; Bearer abc.def.ghi; " +
@@ -142,4 +147,109 @@ test("checkUnknownArgs: truncates long keys, skips suggestions, caps count", () 
   const m2 = checkUnknownArgs("t", many, schema);
   assert.equal((m2.match(/Unknown argument/g) ?? []).length, 5);
   assert.match(m2, /and 4 more/);
+});
+
+test("redactMessage: extra path forms", () => {
+  for (const [input, leak] of [
+    ["failed to read ~/.config/gcloud/adc.json", ".config"],
+    ["see ./keys/sa.json now", "keys"],
+    ["see ../keys/sa.json now", "keys"],
+    ["path `/etc/secrets/key.json` bad", "secrets"],
+    ["a,/etc/secrets/key.json", "secrets"],
+    ["open \\\\fileserver\\share\\key.json failed", "fileserver"],
+    ["cannot open /k.json", "k.json"],
+  ]) {
+    const out = redactMessage(input);
+    assert.ok(out.includes("[redacted path]"), input);
+    assert.ok(!out.includes(leak), `${input} -> ${out}`);
+  }
+});
+
+test("redactMessage: bare slashes and version-like segments survive", () => {
+  assert.equal(redactMessage("use a / b or /v1 or 1/2"), "use a / b or /v1 or 1/2");
+  assert.equal(
+    redactMessage("https://console.firebase.google.com/v1/r/project/p?x=1"),
+    "https://console.firebase.google.com/v1/r/project/p?x=1",
+  );
+});
+
+test("redactMessage: emails, refresh tokens, API keys", () => {
+  const key = "AIza" + "A".repeat(35); // secret-scan:allow fake key
+  const out = redactMessage(
+    `user jane.doe@example.com token 1//0gAbC-def_123 key ${key} sa svc@p.iam.gserviceaccount.com`,
+  );
+  assert.equal(
+    out,
+    "user [redacted email] token [redacted token] key [redacted key] sa [redacted account]",
+  );
+});
+
+test("redactMessage: paths:false keeps paths but still redacts secrets", () => {
+  const out = redactMessage('Invalid path "/users/abc" 1//0gAbC-def_123 a@b.co', {
+    paths: false,
+  });
+  assert.equal(out, 'Invalid path "/users/abc" [redacted token] [redacted email]');
+});
+
+test("buildErrorResponse: validation error keeps caller path; plain Error is redacted", () => {
+  delete process.env.MCP_FIRESTORE_DEBUG;
+  const text = 'Invalid collection path "/users/abc": no leading or trailing slashes.';
+  let thrown;
+  try {
+    validateCollectionPath("/users/abc");
+  } catch (e) {
+    thrown = e;
+  }
+  assert.ok(thrown instanceof InputValidationError);
+  const kept = JSON.parse(buildErrorResponse(thrown).content[0].text).error;
+  assert.equal(kept, text);
+  const plain = JSON.parse(buildErrorResponse(new Error(text)).content[0].text);
+  assert.ok(!plain.error.includes("/users/abc"));
+  assert.match(plain.error, /\[redacted path\]/);
+});
+
+test("buildErrorResponse: validation error still redacts pasted secrets", () => {
+  delete process.env.MCP_FIRESTORE_DEBUG;
+  const err = new InputValidationError(
+    'Invalid path "/x/y" with ya29.abc123 and a@b.com',
+  );
+  const parsed = JSON.parse(buildErrorResponse(err).content[0].text);
+  assert.equal(
+    parsed.error,
+    'Invalid path "/x/y" with [redacted token] and [redacted email]',
+  );
+});
+
+test("buildErrorResponse: AUTH_EXPIRED uses a static message outside debug", () => {
+  delete process.env.MCP_FIRESTORE_DEBUG;
+  const err = new Error(
+    "Getting metadata from plugin failed: jane@example.com /Users/me/adc.json",
+  );
+  const parsed = JSON.parse(buildErrorResponse(err).content[0].text);
+  assert.equal(parsed.error, "Authentication failed: credentials expired or missing.");
+  assert.equal(parsed.code, "AUTH_EXPIRED");
+  process.env.MCP_FIRESTORE_DEBUG = "1";
+  try {
+    assert.match(
+      JSON.parse(buildErrorResponse(err).content[0].text).error,
+      /jane@example\.com/,
+    );
+  } finally {
+    delete process.env.MCP_FIRESTORE_DEBUG;
+  }
+});
+
+test("debugEnabled: only MCP_FIRESTORE_DEBUG", () => {
+  const prev = process.env.DEBUG;
+  delete process.env.MCP_FIRESTORE_DEBUG;
+  process.env.DEBUG = "*";
+  try {
+    assert.equal(debugEnabled(), false);
+    process.env.MCP_FIRESTORE_DEBUG = "1";
+    assert.equal(debugEnabled(), true);
+  } finally {
+    delete process.env.MCP_FIRESTORE_DEBUG;
+    if (prev === undefined) delete process.env.DEBUG;
+    else process.env.DEBUG = prev;
+  }
 });

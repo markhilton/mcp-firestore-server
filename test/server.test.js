@@ -197,3 +197,27 @@ test("readonly=production allows a write with no target when default is emulator
   assert.equal(good.isError, undefined);
   assert.equal(deps.calls.handler, 1);
 });
+
+test("handleToolCall: stderr logs only the redacted message unless MCP_FIRESTORE_DEBUG", async () => {
+  const original = console.error;
+  const prevDebug = process.env.MCP_FIRESTORE_DEBUG;
+  const logged = [];
+  console.error = (...a) => logged.push(a);
+  try {
+    delete process.env.MCP_FIRESTORE_DEBUG;
+    const deps = makeDeps(() => {
+      throw new Error("boom at /Users/me/secret/key.json");
+    });
+    await handleToolCall("list_collections", {}, deps);
+    assert.deepEqual(logged, [["Tool execution error:", "boom at [redacted path]"]]);
+
+    logged.length = 0;
+    process.env.MCP_FIRESTORE_DEBUG = "1";
+    await handleToolCall("list_collections", {}, deps);
+    assert.ok(logged[0][1] instanceof Error);
+  } finally {
+    console.error = original;
+    if (prevDebug === undefined) delete process.env.MCP_FIRESTORE_DEBUG;
+    else process.env.MCP_FIRESTORE_DEBUG = prevDebug;
+  }
+});

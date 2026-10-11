@@ -1,4 +1,10 @@
-import { mapError, redactMessage } from "./errors.js";
+import {
+  mapError,
+  redactMessage,
+  debugEnabled,
+  isValidationError,
+  AUTH_ERROR_MESSAGE,
+} from "./errors.js";
 
 /**
  * Build a standard MCP tool response.
@@ -15,23 +21,23 @@ export function buildResponse(data) {
 }
 
 /**
- * Whether to include stack traces in error responses. Off by default to avoid
- * leaking internal paths to the client; enable with MCP_FIRESTORE_DEBUG or DEBUG.
- */
-function debugEnabled() {
-  return Boolean(process.env.MCP_FIRESTORE_DEBUG || process.env.DEBUG);
-}
-
-/**
- * Build an MCP error response. Includes the stack trace only when a debug
- * environment variable is set.
+ * Build an MCP error response. Stack traces and unredacted messages appear only
+ * when MCP_FIRESTORE_DEBUG is set (see debugEnabled). Outside debug mode,
+ * auth errors get a static message (the hint carries the guidance) and
+ * InputValidationErrors keep caller-supplied paths but still have secrets redacted.
  */
 export function buildErrorResponse(error) {
   const debug = debugEnabled();
   const message = String(error?.message ?? error);
-  const payload = { error: debug ? message : redactMessage(message), ...mapError(error) };
+  const mapped = mapError(error);
+  let text = message;
+  if (!debug) {
+    if (mapped?.code === "AUTH_EXPIRED") text = AUTH_ERROR_MESSAGE;
+    else text = redactMessage(message, { paths: !isValidationError(error) });
+  }
+  const payload = { error: text, ...mapped };
   if (debug) {
-    payload.stack = error.stack;
+    payload.stack = error?.stack;
   }
 
   return {

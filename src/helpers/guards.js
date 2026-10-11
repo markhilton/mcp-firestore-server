@@ -1,4 +1,5 @@
 import { TARGETS } from "../constants.js";
+import { InputValidationError } from "./errors.js";
 
 /**
  * Guard against accidental writes to the production Firestore.
@@ -9,14 +10,14 @@ import { TARGETS } from "../constants.js";
  *
  * @param {string} target - Resolved target ("emulator" | "production").
  * @param {object} args - The tool arguments (checked for `confirm`).
- * @throws {Error} When writing to production without `confirm: true`.
+ * @throws {InputValidationError} When writing to production without `confirm: true`.
  */
 export function assertWriteAllowed(target, args) {
   if (
     target === TARGETS.PRODUCTION &&
     !(Object.hasOwn(args ?? {}, "confirm") && args.confirm === true)
   ) {
-    throw new Error(
+    throw new InputValidationError(
       "Refusing production write: pass confirm:true to write to the production target (target=production).",
     );
   }

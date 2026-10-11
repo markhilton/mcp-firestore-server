@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.2.1 — 2026-10-11
+
+### Security
+
+- Error redaction now also covers `~/` and relative paths, paths after a backtick or comma, UNC paths, single-segment file paths such as `/k.json`, email addresses, Google OAuth refresh tokens and Google API keys.
+- Expired-credential errors (`AUTH_EXPIRED`) return a static message instead of the raw one; the `hint` still tells you what to do.
+- Our own input-validation messages (for example `Invalid collection path "/users/abc"`) keep the path you typed so they stay actionable. Secrets in them are still redacted.
+- **Behaviour change:** stack traces and unredacted errors are enabled by `MCP_FIRESTORE_DEBUG` only. The generic `DEBUG` variable no longer has any effect.
+- A `__proto__` field name in document data or query values is rejected with a clear error instead of silently dropping the field.
+- Tool failures are logged to stderr as a redacted message only (full error and stack with `MCP_FIRESTORE_DEBUG`).
+
 ## 3.2.0 — 2026-10-10
 
 Driven by a review of 1,188 real Claude Code tool calls, about 20% of which failed.
