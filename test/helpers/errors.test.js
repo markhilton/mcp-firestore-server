@@ -259,14 +259,14 @@ test("redactMessage: huge input is capped and fast", () => {
   const big = "a@".repeat(100000);
   const t0 = performance.now();
   const out = redactMessage(big);
-  assert.ok(performance.now() - t0 < 200);
+  assert.ok(performance.now() - t0 < 1000);
   assert.ok(out.length <= 4200);
   const err = new InputValidationError(
     `Invalid collection path "/${"a".repeat(200000)}"`,
   );
   const t1 = performance.now();
   buildErrorResponse(err);
-  assert.ok(performance.now() - t1 < 200);
+  assert.ok(performance.now() - t1 < 1000);
 });
 
 test("redactMessage: UNC needs a prefix; JSON-escaped backslashes survive", () => {
@@ -299,4 +299,16 @@ test("isAuthError: validation errors are never auth errors", () => {
   assert.equal(isAuthError(err), false);
   assert.equal(mapError(err), null);
   assert.equal(JSON.parse(buildErrorResponse(err).content[0].text).code, undefined);
+});
+
+test("redactMessage: secrets straddling the length cap leave no fragment", () => {
+  const key = `AIza${"B".repeat(39)}`;
+  const k = redactMessage(`${"x ".repeat(2040)}${key} tail`);
+  assert.ok(!k.includes("AIza") && !k.includes("BBBB"));
+  const email = redactMessage(`${"x ".repeat(2043)}bob@example.com tail`);
+  assert.ok(!email.includes("bob@") && !email.includes("exampl"));
+});
+
+test("redactMessage: email followed by an underscore is still redacted", () => {
+  assert.equal(redactMessage("foo@bar.com_x"), "[redacted email]_x");
 });

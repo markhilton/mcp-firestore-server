@@ -101,7 +101,10 @@ const SINGLE_SEGMENT_FILE_RE = new RegExp(
 export function redactMessage(message, { paths = true } = {}) {
   let raw = String(message ?? "");
   // Cap first: several patterns are super-linear on huge echoed input.
-  if (raw.length > MAX_REDACT_LENGTH) raw = `${raw.slice(0, MAX_REDACT_LENGTH)}…`;
+  if (raw.length > MAX_REDACT_LENGTH) {
+    // Drop the trailing partial token so a secret split by the cap is not shown in part.
+    raw = `${raw.slice(0, MAX_REDACT_LENGTH).replace(/[^\s"'(),;]*$/, "")}…`;
+  }
   let out = raw
     .replace(PRIVATE_KEY_RE, "[redacted private key]")
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
@@ -113,7 +116,7 @@ export function redactMessage(message, { paths = true } = {}) {
       "[redacted account]",
     )
     .replace(
-      /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/g,
+      /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(?![A-Za-z0-9-])/g,
       "[redacted email]",
     );
   if (paths) {

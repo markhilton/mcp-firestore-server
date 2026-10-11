@@ -187,3 +187,10 @@ test("decodeDocumentData: constructor/prototype keys are ordinary own fields", (
   assert.equal(Object.getPrototypeOf(out), Object.prototype);
   assert.deepEqual(Object.keys(out), ["constructor", "prototype"]);
 });
+
+test("decodeDocumentData: out-of-range Timestamp gives the static message", () => {
+  assert.throws(
+    () => decodeDocumentData({ t: { _seconds: 1e15, _nanoseconds: 0 } }, CREATE),
+    /_seconds\/_nanoseconds are out of Timestamp range\./,
+  );
+});
