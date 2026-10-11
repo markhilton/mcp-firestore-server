@@ -9,6 +9,8 @@
 - Our own input-validation messages (for example `Invalid collection path "/users/abc"`) keep the path you typed so they stay actionable. Secrets in them are still redacted.
 - **Behaviour change:** stack traces and unredacted errors are enabled by `MCP_FIRESTORE_DEBUG` only. The generic `DEBUG` variable no longer has any effect.
 - A `__proto__` field name in document data or query values is rejected with a clear error instead of silently dropping the field.
+- Error messages longer than 4096 characters are truncated before redaction (bounds regex cost on huge echoed input).
+- Validation errors are never classified as `AUTH_EXPIRED`; emails no longer match version strings like `pkg@1.2.3`; UNC detection no longer fires on escaped backslashes.
 - Tool failures are logged to stderr as a redacted message only (full error and stack with `MCP_FIRESTORE_DEBUG`).
 
 ## 3.2.0 — 2026-10-10

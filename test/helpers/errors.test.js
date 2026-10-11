@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -252,4 +253,50 @@ test("debugEnabled: only MCP_FIRESTORE_DEBUG", () => {
     if (prev === undefined) delete process.env.DEBUG;
     else process.env.DEBUG = prev;
   }
+});
+
+test("redactMessage: huge input is capped and fast", () => {
+  const big = "a@".repeat(100000);
+  const t0 = performance.now();
+  const out = redactMessage(big);
+  assert.ok(performance.now() - t0 < 200);
+  assert.ok(out.length <= 4200);
+  const err = new InputValidationError(
+    `Invalid collection path "/${"a".repeat(200000)}"`,
+  );
+  const t1 = performance.now();
+  buildErrorResponse(err);
+  assert.ok(performance.now() - t1 < 200);
+});
+
+test("redactMessage: UNC needs a prefix; JSON-escaped backslashes survive", () => {
+  assert.equal(redactMessage("a\\\\b"), "a\\\\b");
+  assert.equal(redactMessage("at \\\\srv\\share\\k"), "at [redacted path]");
+});
+
+test("redactMessage: versions are not emails; real emails are", () => {
+  assert.equal(
+    redactMessage("firebase-admin@12.0.0 failed"),
+    "firebase-admin@12.0.0 failed",
+  );
+  assert.equal(redactMessage("bob@example.com, x"), "[redacted email], x");
+});
+
+test("redactMessage: longer API keys are fully redacted", () => {
+  const out = redactMessage(`k AIza${"B".repeat(50)} end`);
+  assert.equal(out, "k [redacted key] end");
+});
+
+test("redactMessage: SDK relative doc path survives", () => {
+  const m = "No document to update: projects/p/databases/(default)/documents/users/abc";
+  assert.equal(redactMessage(m), m);
+});
+
+test("isAuthError: validation errors are never auth errors", () => {
+  const err = new InputValidationError(
+    'Invalid collection path "Getting metadata from plugin failed/x": bad.',
+  );
+  assert.equal(isAuthError(err), false);
+  assert.equal(mapError(err), null);
+  assert.equal(JSON.parse(buildErrorResponse(err).content[0].text).code, undefined);
 });

@@ -78,8 +78,8 @@ function decodeSecondsNanos(obj, path) {
   }
   try {
     return new Timestamp(s, n);
-  } catch (err) {
-    return fail(path, err.message);
+  } catch {
+    return fail(path, "_seconds/_nanoseconds are out of Timestamp range.");
   }
 }
 
