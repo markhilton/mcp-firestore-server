@@ -23,7 +23,12 @@ import { findSchemaViolations, SEVERITY } from "./lib/schema-compliance.js";
 // combination of targets, default target and read-only mode.
 const BOTH = ["emulator", "production"];
 const VARIANTS = [
-  { label: "both, default emulator", targets: BOTH, def: "emulator" },
+  {
+    label: "both, default emulator",
+    targets: BOTH,
+    def: "emulator",
+    projectId: "demo-test",
+  },
   { label: "both, default production", targets: BOTH, def: "production" },
   { label: "emulator only", targets: ["emulator"], def: "emulator" },
   { label: "production only", targets: ["production"], def: "production" },
@@ -41,7 +46,7 @@ function variantDefs(v) {
   if (v.readonly) process.env.MCP_FIRESTORE_READONLY = v.readonly;
   else delete process.env.MCP_FIRESTORE_READONLY;
   try {
-    return getToolDefinitions(v.targets, v.def);
+    return getToolDefinitions(v.targets, v.def, v.projectId);
   } finally {
     if (prev === undefined) delete process.env.MCP_FIRESTORE_READONLY;
     else process.env.MCP_FIRESTORE_READONLY = prev;

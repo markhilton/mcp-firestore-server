@@ -151,3 +151,21 @@ test("create_document: validates a provided docId but still auto-generates when 
   const res = await handler({ collection: "users", docId: "", data: { x: 1 } }, db);
   assert.ok(res.id);
 });
+
+test("create_document: overwrite:true without docId is rejected", async () => {
+  const db = makeDb();
+  await assert.rejects(
+    () => handler({ collection: "users", overwrite: true, data: { a: 1 } }, db),
+    /overwrite:true requires docId/,
+  );
+  assert.equal(db.writes.length, 0, "nothing is written");
+});
+
+test("create_document: overwrite false or absent without docId still adds", async () => {
+  const db = makeDb();
+  const a = await handler({ collection: "users", overwrite: false, data: { a: 1 } }, db);
+  const b = await handler({ collection: "users", data: { b: 2 } }, db);
+  assert.equal(a.operation, "created");
+  assert.equal(b.operation, "created");
+  assert.equal(db.writes.length, 2);
+});

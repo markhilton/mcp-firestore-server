@@ -35,10 +35,24 @@ export const SERVER_INSTRUCTIONS =
   "Write to the production target only when the user explicitly asked for that change, and prefer the emulator for experiments. " +
   "Production writes need confirm:true after the user agrees.";
 
-/** Log an error to stderr: full object in debug mode, redacted message otherwise. */
+/** Longest error text written to stderr outside debug mode. */
+const MAX_LOG_LENGTH = 1000;
+
+/**
+ * Log an error to stderr: full object in debug mode. Otherwise the redacted
+ * message with control characters (which could forge extra log lines) replaced
+ * by spaces and capped at MAX_LOG_LENGTH characters.
+ */
 export function logError(label, error) {
-  if (debugEnabled()) console.error(label, error);
-  else console.error(label, redactMessage(error?.message ?? error));
+  if (debugEnabled()) {
+    console.error(label, error);
+    return;
+  }
+  const text = redactMessage(error?.message ?? error)
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ")
+    .slice(0, MAX_LOG_LENGTH);
+  console.error(label, text);
 }
 
 /** Build the "[production] WRITE tool collection/id" audit line (no document data). */
@@ -149,9 +163,8 @@ export async function handleToolCall(name, args, deps) {
 
     return buildResponse({ ...result, target });
   } catch (error) {
-    // Full error objects carry stacks and SDK details; log them only in debug mode.
-    if (debugEnabled()) console.error("Tool execution error:", error);
-    else console.error("Tool execution error:", redactMessage(error?.message ?? error));
+    // Full error objects carry stacks and SDK details; logError logs them only in debug mode.
+    logError("Tool execution error:", error);
     return buildErrorResponse(error);
   }
 }

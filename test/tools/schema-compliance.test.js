@@ -8,7 +8,7 @@ import {
   SEVERITY,
 } from "../../scripts/lib/schema-compliance.js";
 
-const defs = getToolDefinitions(["emulator", "production"], "emulator");
+const defs = getToolDefinitions(["emulator", "production"], "emulator", "demo-test");
 
 test("every tool inputSchema compiles under JSON Schema Draft 2020-12 (Ajv)", () => {
   const ajv = new Ajv2020({ strict: false, allErrors: true });

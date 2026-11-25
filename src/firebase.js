@@ -3,8 +3,17 @@ import { getFirestore } from "firebase-admin/firestore";
 import { detectProjectId } from "./config.js";
 import { TARGETS } from "./constants.js";
 
-/** Valid project ID shape; rejects odd values from untrusted .firebaserc files. */
-const PROJECT_ID_RE = /^[a-z0-9][a-z0-9.:-]{2,62}$/;
+/**
+ * Loose project ID shape. Only keeps whitespace, control characters and prose out
+ * of the log line and tool description; emulator-only setups may use uppercase
+ * letters or underscores, so this is deliberately wider than GCP's own rules.
+ */
+const PROJECT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,62}$/;
+
+/** True when `projectId` is a plausible project ID (see PROJECT_ID_RE). */
+export function isValidProjectId(projectId) {
+  return typeof projectId === "string" && PROJECT_ID_RE.test(projectId);
+}
 
 let emulatorDb = null;
 let productionDb = null;
@@ -110,12 +119,12 @@ export function initFirebase() {
     );
   }
 
-  if (!PROJECT_ID_RE.test(projectId)) {
+  if (!isValidProjectId(projectId)) {
     const shown = String(projectId)
       .replace(/[^\x20-\x7e]/g, "?")
       .slice(0, 40);
     throw new Error(
-      `Invalid Google Cloud project ID "${shown}": expected 3-63 characters of lowercase letters, digits, '.', ':' or '-', starting with a letter or digit. Fix GOOGLE_CLOUD_PROJECT / FIREBASE_PROJECT_ID or the .firebaserc / firebase.json project.`,
+      `Invalid Google Cloud project ID "${shown}": expected 1-63 characters of letters, digits, '.', '_', ':' or '-', starting with a letter or digit. Fix GOOGLE_CLOUD_PROJECT / FIREBASE_PROJECT_ID or the .firebaserc / firebase.json project.`,
     );
   }
 

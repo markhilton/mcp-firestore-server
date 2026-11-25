@@ -9,6 +9,7 @@ import {
   validateDocId,
   assertNonEmptyData,
 } from "../helpers/validate.js";
+import { InputValidationError } from "../helpers/errors.js";
 import { decodeDocumentData, DECODE_MODES } from "../helpers/typed-values.js";
 
 export const definition = {
@@ -49,6 +50,11 @@ export async function handler(args, db, target) {
   const hasDocId = args.docId !== undefined && args.docId !== null && args.docId !== "";
   if (hasDocId) validateDocId(args.docId);
   const overwrite = Object.hasOwn(args, "overwrite") && args.overwrite === true;
+  if (overwrite && !hasDocId) {
+    throw new InputValidationError(
+      "overwrite:true requires docId (an auto-generated ID can never collide). Pass a docId, or drop overwrite.",
+    );
+  }
 
   const collectionRef = db.collection(args.collection);
   let docRef;

@@ -152,7 +152,12 @@ export function mapError(error) {
 
   if (isAuthError(error)) return { code: "AUTH_EXPIRED", hint: AUTH_HINT };
 
-  if (error?.code === 6 || /\bALREADY_EXISTS\b/.test(message)) {
+  // Only the structured gRPC signal counts. Validation messages echo caller input
+  // and must not steer an assistant toward a destructive overwrite.
+  if (
+    !isValidationError(error) &&
+    (error?.code === 6 || /^(?:6 )?ALREADY_EXISTS\b/.test(message))
+  ) {
     return {
       code: "ALREADY_EXISTS",
       hint: "A document with this ID already exists. Use update_document to change it, or pass overwrite: true to replace it entirely.",

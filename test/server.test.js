@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { handleToolCall, SERVER_INSTRUCTIONS } from "../src/server.js";
+import { handleToolCall, logError, SERVER_INSTRUCTIONS } from "../src/server.js";
 import { getToolDefinitions } from "../src/tools/index.js";
 
 const toolDefinitions = getToolDefinitions(["emulator", "production"], "emulator");
@@ -312,4 +312,67 @@ test("SERVER_INSTRUCTIONS: non-empty, under 600 chars, covers untrusted data and
   assert.match(SERVER_INSTRUCTIONS, /production/i);
   assert.match(SERVER_INSTRUCTIONS, /explicitly asked/i);
   assert.match(SERVER_INSTRUCTIONS, /emulator/i);
+});
+
+test("handleToolCall: caller-controlled newlines in an unknown tool name make one stderr line", async () => {
+  const prevDebug = process.env.MCP_FIRESTORE_DEBUG;
+  delete process.env.MCP_FIRESTORE_DEBUG;
+  const calls = [];
+  const orig = console.error;
+  console.error = (...a) => calls.push(a);
+  try {
+    const res = await handleToolCall("evil\ntool\u2028x\u0085y", {}, { toolDefinitions });
+    assert.equal(res.isError, true);
+    assert.equal(calls.length, 1);
+    const text = calls[0].map(String).join(" ");
+    assert.match(text, /Unknown tool: evil tool x y/);
+    // eslint-disable-next-line no-control-regex
+    assert.doesNotMatch(text, /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
+  } finally {
+    console.error = orig;
+    if (prevDebug !== undefined) process.env.MCP_FIRESTORE_DEBUG = prevDebug;
+  }
+});
+
+test("logError: handles Error, undefined and non-Error reasons; redacts and caps outside debug", () => {
+  const prevDebug = process.env.MCP_FIRESTORE_DEBUG;
+  delete process.env.MCP_FIRESTORE_DEBUG;
+  const calls = [];
+  const orig = console.error;
+  console.error = (...a) => calls.push(a);
+  try {
+    logError("L:", new Error("fail at /Users/me/secret/key.json\nnext"));
+    logError("L:", undefined);
+    logError("L:", "string reason /Users/me/secret/key.json");
+    logError("L:", { message: "obj at /Users/me/secret/key.json" });
+    logError("L:", { other: 1 });
+    logError("L:", new Error("x".repeat(5000)));
+    assert.equal(calls.length, 6);
+    assert.equal(calls[0][1], "fail at [redacted path] next");
+    assert.equal(calls[1][1], "");
+    assert.equal(calls[2][1], "string reason [redacted path]");
+    assert.equal(calls[3][1], "obj at [redacted path]");
+    assert.equal(calls[4][1], "[object Object]");
+    assert.ok(calls[5][1].length <= 1000);
+  } finally {
+    console.error = orig;
+    if (prevDebug !== undefined) process.env.MCP_FIRESTORE_DEBUG = prevDebug;
+  }
+});
+
+test("logError: debug mode logs the full error object unchanged", () => {
+  const prevDebug = process.env.MCP_FIRESTORE_DEBUG;
+  process.env.MCP_FIRESTORE_DEBUG = "1";
+  const calls = [];
+  const orig = console.error;
+  console.error = (...a) => calls.push(a);
+  try {
+    const err = new Error("a\nb");
+    logError("L:", err);
+    assert.equal(calls[0][1], err);
+  } finally {
+    console.error = orig;
+    if (prevDebug === undefined) delete process.env.MCP_FIRESTORE_DEBUG;
+    else process.env.MCP_FIRESTORE_DEBUG = prevDebug;
+  }
 });

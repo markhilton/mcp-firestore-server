@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { initFirebase, getDb, resetTarget } from "../src/firebase.js";
+import { initFirebase, getDb, resetTarget, isValidProjectId } from "../src/firebase.js";
 
 test("resetTarget: re-creates only that target and restores env", async () => {
   const saved = { ...process.env };
@@ -126,7 +126,7 @@ test("default target: valid but unavailable target throws", async () => {
 });
 
 test("project id: invalid values are rejected without echoing more than 40 chars", async () => {
-  for (const bad of ["UPPER-case", "a", "has space", "-lead", `x${"y".repeat(100)}!`]) {
+  for (const bad of ["has space", "-lead", `x${"y".repeat(100)}!`]) {
     await withEnv({ ...BOTH, GOOGLE_CLOUD_PROJECT: bad }, async () => {
       assert.throws(
         () => initFirebase(),
@@ -154,4 +154,32 @@ test("project id: valid ids are accepted", async () => {
   await withEnv(BOTH, async () => {
     assert.equal(initFirebase().projectId, "demo-test");
   });
+});
+
+test("isValidProjectId: accepts loose emulator-style ids", () => {
+  for (const ok of [
+    "My_Test",
+    "demo-test",
+    "example.com:my-project",
+    "a",
+    "x".repeat(63),
+  ]) {
+    assert.equal(isValidProjectId(ok), true, ok);
+  }
+});
+
+test("isValidProjectId: rejects whitespace, control chars, quotes, overlong and non-strings", () => {
+  for (const bad of [
+    "has space",
+    "line\nbreak",
+    'quo"te',
+    "it's",
+    "-lead",
+    "",
+    "x".repeat(64),
+    undefined,
+    42,
+  ]) {
+    assert.equal(isValidProjectId(bad), false, String(bad));
+  }
 });
