@@ -22,22 +22,26 @@ import { findSchemaViolations, SEVERITY } from "./lib/schema-compliance.js";
 // Exercise the schemas exactly as the server emits them, across every
 // combination of targets, default target and read-only mode.
 const BOTH = ["emulator", "production"];
+const PID = "demo-test";
+// Every variant passes a projectId, as the server always does, except
+// "emulator only", which covers the omitted-projectId branch.
 const VARIANTS = [
-  {
-    label: "both, default emulator",
-    targets: BOTH,
-    def: "emulator",
-    projectId: "demo-test",
-  },
-  { label: "both, default production", targets: BOTH, def: "production" },
+  { label: "both, default emulator", targets: BOTH, def: "emulator", projectId: PID },
+  { label: "both, default production", targets: BOTH, def: "production", projectId: PID },
   { label: "emulator only", targets: ["emulator"], def: "emulator" },
-  { label: "production only", targets: ["production"], def: "production" },
-  { label: "readonly=1", targets: BOTH, def: "emulator", readonly: "1" },
+  {
+    label: "production only",
+    targets: ["production"],
+    def: "production",
+    projectId: PID,
+  },
+  { label: "readonly=1", targets: BOTH, def: "emulator", readonly: "1", projectId: PID },
   {
     label: "readonly=production",
     targets: BOTH,
     def: "emulator",
     readonly: "production",
+    projectId: PID,
   },
 ];
 

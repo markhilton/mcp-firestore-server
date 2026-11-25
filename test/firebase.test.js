@@ -260,3 +260,40 @@ test("project id: the one log line names a fixed source label", async () => {
     assert.ok(logged.includes("Project ID: demo-test (from GOOGLE_CLOUD_PROJECT)"));
   });
 });
+
+test("project id: object with a toString key gives the designed error, nothing leaks", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "mcp-fs-rc-"));
+  writeFileSync(
+    join(dir, ".firebaserc"),
+    JSON.stringify({ projects: { default: { toString: "x" } } }),
+  );
+  const origCwd = process.cwd();
+  const origPath = process.env.PATH;
+  const savedGcloud = process.env.GCLOUD_PROJECT;
+  delete process.env.GCLOUD_PROJECT;
+  try {
+    await withEnv({ ...BOTH, GOOGLE_CLOUD_PROJECT: undefined }, async () => {
+      const logged = [];
+      console.error = (...args) => logged.push(args.join(" "));
+      process.chdir(dir);
+      process.env.PATH = dir;
+      assert.throws(
+        () => initFirebase(),
+        err => {
+          assert.ok(!(err instanceof TypeError));
+          assert.match(err.message, /Invalid Google Cloud project ID "<object>"/);
+          return true;
+        },
+      );
+      assert.ok(
+        logged.every(line => !line.includes("toString")),
+        `file content leaked to stderr: ${JSON.stringify(logged)}`,
+      );
+    });
+  } finally {
+    process.chdir(origCwd);
+    process.env.PATH = origPath;
+    if (savedGcloud !== undefined) process.env.GCLOUD_PROJECT = savedGcloud;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

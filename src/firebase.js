@@ -120,7 +120,8 @@ export function initFirebase() {
   }
 
   if (!isValidProjectId(projectId)) {
-    const shown = String(projectId)
+    // Never coerce a non-string: a parsed JSON object can carry its own toString.
+    const shown = (typeof projectId === "string" ? projectId : `<${typeof projectId}>`)
       .replace(/[^\x20-\x7e]/g, "?")
       .slice(0, 40);
     throw new Error(
