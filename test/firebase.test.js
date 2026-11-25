@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { initFirebase, getDb, resetTarget, isValidProjectId } from "../src/firebase.js";
 
 test("resetTarget: re-creates only that target and restores env", async () => {
@@ -182,4 +185,78 @@ test("isValidProjectId: rejects whitespace, control chars, quotes, overlong and 
   ]) {
     assert.equal(isValidProjectId(bad), false, String(bad));
   }
+});
+
+test("project id: newline-bearing .firebaserc value never reaches stderr and startup fails", async () => {
+  const evil = "demo\n[production] WRITE delete_document users/admin";
+  const dir = mkdtempSync(join(tmpdir(), "mcp-fs-rc-"));
+  writeFileSync(
+    join(dir, ".firebaserc"),
+    JSON.stringify({ projects: { default: evil } }),
+  );
+  const origCwd = process.cwd();
+  const origPath = process.env.PATH;
+  const savedGcloud = process.env.GCLOUD_PROJECT;
+  delete process.env.GCLOUD_PROJECT;
+  try {
+    await withEnv({ ...BOTH, GOOGLE_CLOUD_PROJECT: undefined }, async () => {
+      const logged = [];
+      console.error = (...args) => logged.push(args.join(" "));
+      process.chdir(dir);
+      process.env.PATH = dir; // no gcloud
+      assert.throws(
+        () => initFirebase(),
+        err => {
+          assert.match(
+            err.message,
+            /Invalid Google Cloud project ID "demo\?\[production\]/,
+          );
+          assert.ok(![...err.message].some(c => c.charCodeAt(0) < 0x20));
+          return true;
+        },
+      );
+      assert.ok(
+        logged.every(line => !line.includes("WRITE") && !line.includes("demo")),
+        `file content leaked to stderr: ${JSON.stringify(logged)}`,
+      );
+    });
+  } finally {
+    process.chdir(origCwd);
+    process.env.PATH = origPath;
+    if (savedGcloud !== undefined) process.env.GCLOUD_PROJECT = savedGcloud;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("project id: non-string .firebaserc value is rejected, not coerced", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "mcp-fs-rc-"));
+  writeFileSync(
+    join(dir, ".firebaserc"),
+    JSON.stringify({ projects: { default: ["demo-test"] } }),
+  );
+  const origCwd = process.cwd();
+  const origPath = process.env.PATH;
+  const savedGcloud = process.env.GCLOUD_PROJECT;
+  delete process.env.GCLOUD_PROJECT;
+  try {
+    await withEnv({ ...BOTH, GOOGLE_CLOUD_PROJECT: undefined }, async () => {
+      process.chdir(dir);
+      process.env.PATH = dir;
+      assert.throws(() => initFirebase(), /Invalid Google Cloud project ID/);
+    });
+  } finally {
+    process.chdir(origCwd);
+    process.env.PATH = origPath;
+    if (savedGcloud !== undefined) process.env.GCLOUD_PROJECT = savedGcloud;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("project id: the one log line names a fixed source label", async () => {
+  await withEnv(BOTH, async () => {
+    const logged = [];
+    console.error = (...args) => logged.push(args.join(" "));
+    initFirebase();
+    assert.ok(logged.includes("Project ID: demo-test (from GOOGLE_CLOUD_PROJECT)"));
+  });
 });

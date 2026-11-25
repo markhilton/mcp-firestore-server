@@ -98,7 +98,7 @@ export function initFirebase() {
   availableTargets = [];
   activeEmulatorHost = null;
 
-  const projectId = detectProjectId();
+  const { projectId, source: projectSource } = detectProjectId();
 
   if (!projectId) {
     throw new Error(
@@ -130,7 +130,7 @@ export function initFirebase() {
 
   activeProjectId = projectId;
   activeEmulatorHost = emulatorHost || null;
-  console.error(`Project ID: ${projectId}`);
+  console.error(`Project ID: ${projectId} (from ${projectSource})`);
 
   // Initialize emulator target
   if (emulatorHost) {

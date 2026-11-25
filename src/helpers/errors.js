@@ -160,7 +160,7 @@ export function mapError(error) {
   ) {
     return {
       code: "ALREADY_EXISTS",
-      hint: "A document with this ID already exists. Use update_document to change it, or pass overwrite: true to replace it entirely.",
+      hint: "A document with this ID already exists. Use update_document to change specific fields. Only if the user explicitly wants the existing document replaced entirely, ask them first, then retry with overwrite: true (destructive).",
     };
   }
 

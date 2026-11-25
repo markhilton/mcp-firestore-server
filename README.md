@@ -193,7 +193,7 @@ Fetch multiple documents by ID in a single request.
 
 ### create_document
 
-Create a new document. `data` supports [typed values](#typed-values-timestamps-and-field-sentinels) except `$delete`. With a `docId`, the call fails with `ALREADY_EXISTS` if that document exists: use `update_document` to change it, or pass `overwrite: true` to replace it entirely.
+Create a new document. `data` supports [typed values](#typed-values-timestamps-and-field-sentinels) except `$delete`. With a `docId`, the call fails with `ALREADY_EXISTS` if that document exists: use `update_document` to change specific fields. `overwrite: true` replaces the existing document entirely and is destructive, so the assistant is told to use it only when you explicitly ask for a replacement.
 
 ```typescript
 {

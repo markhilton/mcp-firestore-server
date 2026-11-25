@@ -79,7 +79,10 @@ test("create_document: existing docId fails with ALREADY_EXISTS and is not repla
     () => handler({ collection: "users", docId: "a", data: { name: "New" } }, db),
     err => {
       assert.equal(mapError(err).code, "ALREADY_EXISTS");
-      assert.match(mapError(err).hint, /update_document.*overwrite: true/);
+      assert.match(
+        mapError(err).hint,
+        /update_document.*ask them first.*overwrite: true/,
+      );
       return true;
     },
   );
@@ -168,4 +171,27 @@ test("create_document: overwrite false or absent without docId still adds", asyn
   assert.equal(a.operation, "created");
   assert.equal(b.operation, "created");
   assert.equal(db.writes.length, 2);
+});
+
+test("create_document: empty docId with overwrite:true is rejected and writes nothing", async () => {
+  const db = makeDb();
+  await assert.rejects(
+    () =>
+      handler({ collection: "users", docId: "", overwrite: true, data: { a: 1 } }, db),
+    /overwrite:true requires docId/,
+  );
+  assert.equal(db.writes.length, 0, "nothing is written");
+});
+
+test("create_document: ALREADY_EXISTS hint and descriptions put user consent before overwrite", () => {
+  const hint = mapError({
+    code: 6,
+    message: "6 ALREADY_EXISTS: Document already exists",
+  }).hint;
+  assert.match(hint, /explicitly wants.*ask them/);
+  assert.match(definition.description, /only after the user explicitly asks/);
+  assert.match(
+    definition.inputSchema.properties.overwrite.description,
+    /only after the user explicitly asks.*never as an automatic retry/,
+  );
 });

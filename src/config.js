@@ -5,12 +5,18 @@ import { execSync } from "child_process"; // secret-scan:allow — fixed `gcloud
 /**
  * Auto-detect Google Cloud Project ID from environment, gcloud config,
  * or Firebase config files.
+ *
+ * Returns `{ projectId, source }`. `source` is a fixed label chosen by this code,
+ * never text read from a file. `projectId` is returned exactly as found (it may be
+ * unvalidated, even a non-string, when it came from a file or gcloud) and is
+ * `null` when nothing was found. This function logs nothing: the caller must
+ * validate `projectId` before it writes it anywhere.
  */
 export function detectProjectId() {
   // 1. Check environment variables
-  if (process.env.GOOGLE_CLOUD_PROJECT) return process.env.GOOGLE_CLOUD_PROJECT;
-  if (process.env.FIREBASE_PROJECT_ID) return process.env.FIREBASE_PROJECT_ID;
-  if (process.env.GCLOUD_PROJECT) return process.env.GCLOUD_PROJECT;
+  for (const name of ["GOOGLE_CLOUD_PROJECT", "FIREBASE_PROJECT_ID", "GCLOUD_PROJECT"]) {
+    if (process.env[name]) return { projectId: process.env[name], source: name };
+  }
 
   // 2. Try to get from gcloud config
   try {
@@ -19,10 +25,7 @@ export function detectProjectId() {
       timeout: 3000,
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
-    if (gcloudProject && gcloudProject !== "") {
-      console.error(`Auto-detected project from gcloud: ${gcloudProject}`);
-      return gcloudProject;
-    }
+    if (gcloudProject) return { projectId: gcloudProject, source: "gcloud config" };
   } catch (e) {
     // gcloud not installed or not configured
   }
@@ -35,10 +38,7 @@ export function detectProjectId() {
       try {
         const firebaseConfig = JSON.parse(readFileSync(firebaseJsonPath, "utf8"));
         if (firebaseConfig.projects?.default) {
-          console.error(
-            `Auto-detected project from firebase.json: ${firebaseConfig.projects.default}`,
-          );
-          return firebaseConfig.projects.default;
+          return { projectId: firebaseConfig.projects.default, source: "firebase.json" };
         }
       } catch (e) {
         // Invalid firebase.json
@@ -50,10 +50,7 @@ export function detectProjectId() {
       try {
         const firebaserc = JSON.parse(readFileSync(firebasercPath, "utf8"));
         if (firebaserc.projects?.default) {
-          console.error(
-            `Auto-detected project from .firebaserc: ${firebaserc.projects.default}`,
-          );
-          return firebaserc.projects.default;
+          return { projectId: firebaserc.projects.default, source: ".firebaserc" };
         }
       } catch (e) {
         // Invalid .firebaserc
@@ -65,5 +62,5 @@ export function detectProjectId() {
     currentDir = parentDir;
   }
 
-  return null;
+  return { projectId: null, source: null };
 }
