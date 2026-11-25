@@ -1,6 +1,6 @@
 import { COLLECTION_PROPERTY, CONFIRM_PROPERTY } from "../helpers/schema.js";
 import { assertWriteAllowed } from "../helpers/guards.js";
-import { validateCollectionPath } from "../helpers/validate.js";
+import { validateCollectionPath, validateDocId } from "../helpers/validate.js";
 
 export const definition = {
   name: "delete_document",
@@ -20,6 +20,7 @@ export const definition = {
 export async function handler(args, db, target) {
   assertWriteAllowed(target, args);
   validateCollectionPath(args.collection);
+  validateDocId(args.docId);
 
   await db.collection(args.collection).doc(args.docId).delete();
 

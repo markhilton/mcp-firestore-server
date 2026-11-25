@@ -4,6 +4,7 @@
  * source actually calls:
  *   db.collection(path) -> .where / .orderBy / .startAfter / .limit / .get
  *                          .count().get() / .doc(id) / .add(data) / .listCollections()
+ *   docRef.create(data) fails with code 6 when the doc exists
  *   db.doc(path)        -> .get / .set / .update / .delete / .listCollections()
  *   db.getAll(...refs)  -> [snapshot, ...]
  *   db.listCollections()
@@ -96,6 +97,25 @@ class DocumentReference {
       id: this.id,
       data,
       options,
+    });
+    return this;
+  }
+  /** Like the SDK: fails with gRPC ALREADY_EXISTS (code 6) when the doc exists. */
+  async create(data) {
+    const store = this._store();
+    if (store[this.id]) {
+      const err = new Error(
+        `6 ALREADY_EXISTS: Document already exists: ${this.collectionPath}/${this.id}`,
+      );
+      err.code = 6;
+      throw err;
+    }
+    store[this.id] = { ...data };
+    this.db.writes.push({
+      op: "create",
+      path: this.collectionPath,
+      id: this.id,
+      data,
     });
     return this;
   }

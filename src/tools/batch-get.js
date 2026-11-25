@@ -1,6 +1,10 @@
 import { COLLECTION_PROPERTY, OUTPUT_PROPERTIES } from "../helpers/schema.js";
 import { mapDocSnapshot } from "../helpers/query.js";
-import { validateCollectionPath, assertBatchSize } from "../helpers/validate.js";
+import {
+  validateCollectionPath,
+  assertBatchSize,
+  validateDocId,
+} from "../helpers/validate.js";
 import {
   fitDocs,
   fitSingleDoc,
@@ -31,6 +35,7 @@ export const definition = {
 export async function handler(args, db) {
   validateCollectionPath(args.collection);
   assertBatchSize(args.docIds);
+  args.docIds.forEach((id, i) => validateDocId(id, `docIds[${i}]`));
   const maxChars = resolveMaxChars(args.maxChars);
   const fields = normalizeFields(args.fields);
 

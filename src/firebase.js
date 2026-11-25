@@ -3,6 +3,9 @@ import { getFirestore } from "firebase-admin/firestore";
 import { detectProjectId } from "./config.js";
 import { TARGETS } from "./constants.js";
 
+/** Valid project ID shape; rejects odd values from untrusted .firebaserc files. */
+const PROJECT_ID_RE = /^[a-z0-9][a-z0-9.:-]{2,62}$/;
+
 let emulatorDb = null;
 let productionDb = null;
 let defaultTarget = null;
@@ -107,6 +110,15 @@ export function initFirebase() {
     );
   }
 
+  if (!PROJECT_ID_RE.test(projectId)) {
+    const shown = String(projectId)
+      .replace(/[^\x20-\x7e]/g, "?")
+      .slice(0, 40);
+    throw new Error(
+      `Invalid Google Cloud project ID "${shown}": expected 3-63 characters of lowercase letters, digits, '.', ':' or '-', starting with a letter or digit. Fix GOOGLE_CLOUD_PROJECT / FIREBASE_PROJECT_ID or the .firebaserc / firebase.json project.`,
+    );
+  }
+
   activeProjectId = projectId;
   activeEmulatorHost = emulatorHost || null;
   console.error(`Project ID: ${projectId}`);
@@ -126,8 +138,21 @@ export function initFirebase() {
   }
 
   // Resolve default target
-  const envDefault = process.env.MCP_FIRESTORE_DEFAULT_TARGET;
-  if (envDefault && availableTargets.includes(envDefault)) {
+  const envDefault = (process.env.MCP_FIRESTORE_DEFAULT_TARGET || "")
+    .trim()
+    .toLowerCase();
+  if (envDefault) {
+    if (envDefault !== TARGETS.EMULATOR && envDefault !== TARGETS.PRODUCTION) {
+      const shown = envDefault.replace(/[^\x20-\x7e]/g, "?").slice(0, 40);
+      throw new Error(
+        `Invalid MCP_FIRESTORE_DEFAULT_TARGET "${shown}": must be "emulator" or "production". Available targets: ${availableTargets.join(", ")}.`,
+      );
+    }
+    if (!availableTargets.includes(envDefault)) {
+      throw new Error(
+        `MCP_FIRESTORE_DEFAULT_TARGET is "${envDefault}" but that target is not available. Available targets: ${availableTargets.join(", ")}. Configure ${envDefault === TARGETS.EMULATOR ? "FIRESTORE_EMULATOR_HOST" : "GOOGLE_APPLICATION_CREDENTIALS"} or change the default.`,
+      );
+    }
     defaultTarget = envDefault;
   } else if (availableTargets.length === 1) {
     defaultTarget = availableTargets[0];

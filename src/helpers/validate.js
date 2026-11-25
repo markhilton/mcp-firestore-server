@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { InputValidationError } from "./errors.js";
 
 export const DEFAULT_LIMIT = 10;
@@ -58,6 +59,77 @@ export function validateCollectionPath(path) {
       `Invalid collection path "${path}": collection paths must have an odd number of segments (e.g. 'users' or 'users/uid/posts').`,
     );
   }
+}
+
+/** Max document ID size in bytes (Firestore limit). */
+const MAX_DOC_ID_BYTES = 1500;
+
+/** Rules shared by document IDs and path segments (no slash check here). */
+function checkIdSegment(id, label) {
+  if (typeof id !== "string" || id === "") {
+    throw new InputValidationError(`Invalid ${label}: expected a non-empty string.`);
+  }
+  if (id === "." || id === "..") {
+    throw new InputValidationError(
+      `Invalid ${label} "${id}": "." and ".." are reserved.`,
+    );
+  }
+  if (/^__.*__$/.test(id)) {
+    throw new InputValidationError(
+      `Invalid ${label} "${id}": IDs of the form __name__ are reserved by Firestore.`,
+    );
+  }
+  if (Buffer.byteLength(id, "utf8") > MAX_DOC_ID_BYTES) {
+    throw new InputValidationError(
+      `Invalid ${label}: longer than ${MAX_DOC_ID_BYTES} bytes.`,
+    );
+  }
+}
+
+/**
+ * Validate a single Firestore document ID.
+ *
+ * @param {unknown} id
+ * @param {string} [label="docId"] Name used in error messages.
+ * @throws {InputValidationError} When the ID is not a valid single-segment ID.
+ */
+export function validateDocId(id, label = "docId") {
+  if (typeof id === "string" && id.includes("/")) {
+    throw new InputValidationError(
+      `Invalid ${label} "${id}": must not contain "/". Put the parent path in \`collection\` instead (e.g. collection "users/u1/posts", docId "p1").`,
+    );
+  }
+  checkIdSegment(id, label);
+}
+
+/**
+ * Validate a Firestore document path ("users/uid" or "users/uid/posts/p1"):
+ * an even number of valid segments.
+ *
+ * @param {string} path
+ * @throws {InputValidationError} When the path is malformed.
+ */
+export function validateDocumentPath(path) {
+  if (typeof path !== "string" || path.trim() === "") {
+    throw new InputValidationError("Invalid document path: expected a non-empty string.");
+  }
+  if (path.startsWith("/") || path.endsWith("/")) {
+    throw new InputValidationError(
+      `Invalid document path "${path}": no leading or trailing slashes.`,
+    );
+  }
+  const segments = path.split("/");
+  if (segments.some(s => s.trim() === "")) {
+    throw new InputValidationError(
+      `Invalid document path "${path}": contains empty segments.`,
+    );
+  }
+  if (segments.length % 2 !== 0) {
+    throw new InputValidationError(
+      `Invalid document path "${path}": document paths must have an even number of segments (e.g. 'users/uid' or 'users/uid/posts/p1').`,
+    );
+  }
+  for (const segment of segments) checkIdSegment(segment, "document path segment");
 }
 
 /**

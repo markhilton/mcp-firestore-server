@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.3.0 — 2026-11-24
+
+Security review of the whole package, plus dependency updates. No tool was removed. Four defaults changed to fail safe; each keeps the old capability reachable.
+
+### Security
+
+- **Behaviour change:** an unrecognised `MCP_FIRESTORE_READONLY` value (for example `yes` or `prod`) now enables full read-only mode and logs a warning. Before, it silently left writes enabled. `0`, `false`, `off`, `no` and unset still mean writes are enabled.
+- **Behaviour change:** the server refuses to start when `MCP_FIRESTORE_DEFAULT_TARGET` is misspelled or names a target that is not configured. Before, asking for `emulator` without an emulator silently made **production** the default.
+- **Behaviour change:** `create_document` with a `docId` fails with `ALREADY_EXISTS` when that document exists. Before, it silently replaced the whole document. Pass the new `overwrite: true` to keep the old behaviour. The tool is now annotated `destructiveHint: true`.
+- **Behaviour change:** `docId`, `docIds` and `startAfter` must be single path segments (no `/`, not `.`/`..`, not `__name__`, at most 1500 bytes), and `list_collections` validates `documentPath`. Reach nested documents through `collection` (`users/u1/posts`).
+- Tool names are resolved from own entries only. Names such as `constructor` or `toString` are rejected as unknown tools instead of reaching an inherited function.
+- Every successful write to the production target is logged to stderr with the tool, collection and document ID (never the data).
+- The server sends MCP `instructions` telling the client that document data is untrusted and that production writes need an explicit request from the user. The production-write refusal now says to ask the user before retrying with `confirm: true`.
+- The project ID is validated at startup and shown in each tool's `target` description, so a `.firebaserc` in an unfamiliar directory cannot silently choose the project.
+- Startup, transport and fatal-error log lines are redacted like tool errors (full text with `MCP_FIRESTORE_DEBUG` only). Unknown tool names are no longer written to the log.
+- The npm tarball is built from a `files` allowlist (`index.js`, `src/`). A test fails if anything else, or anything shaped like a credential, would be published.
+- CI runs with a read-only token, does not persist checkout credentials, and pins its actions to commit SHAs.
+- README documents the security model: `confirm: true` is a guard against accidents, not a security boundary; use least-privilege credentials and `MCP_FIRESTORE_READONLY=production`.
+
+### Added
+
+- `create_document`: `overwrite` argument. Error code `ALREADY_EXISTS` with a hint.
+
+### Changed
+
+- `@modelcontextprotocol/sdk` 1.17 → 1.32, `firebase-admin` 14.0 → 14.5 (`@google-cloud/firestore` 9.4), `eslint` 10.15, `prettier` 3.10. `npm audit` reports 0 advisories (was 11).
+- A test asserts that the emulator client is bound to the emulator host and the production client is not, so a dependency update cannot silently break target isolation.
+
 ## 3.2.1 — 2026-10-11
 
 ### Security

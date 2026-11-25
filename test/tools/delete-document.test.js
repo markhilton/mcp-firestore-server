@@ -38,3 +38,16 @@ test("delete_document: allows production delete with confirm:true", async () => 
   assert.equal(res.operation, "deleted");
   assert.equal(db.data.users.a, undefined);
 });
+
+test("delete_document: rejects an invalid docId before touching Firestore", async () => {
+  const db = makeDb();
+  await assert.rejects(
+    () => handler({ collection: "users", docId: "a/b" }, db),
+    /must not contain "\/"/,
+  );
+  await assert.rejects(
+    () => handler({ collection: "users", docId: ".." }, db),
+    /reserved/,
+  );
+  assert.equal(db.writes.length, 0);
+});

@@ -12,7 +12,7 @@ test("assertWriteAllowed: blocks production writes without confirm:true", () => 
   assert.throws(() => assertWriteAllowed(TARGETS.PRODUCTION, {}), /production/i);
   assert.throws(
     () => assertWriteAllowed(TARGETS.PRODUCTION, { confirm: false }),
-    /confirm:true/,
+    /Ask the user to confirm, then retry with confirm:true/,
   );
   assert.throws(
     () => assertWriteAllowed(TARGETS.PRODUCTION, { confirm: "true" }),

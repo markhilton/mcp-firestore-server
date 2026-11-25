@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { handleToolCall } from "../src/server.js";
+import { handleToolCall, SERVER_INSTRUCTIONS } from "../src/server.js";
 import { getToolDefinitions } from "../src/tools/index.js";
 
 const toolDefinitions = getToolDefinitions(["emulator", "production"], "emulator");
@@ -220,4 +220,96 @@ test("handleToolCall: stderr logs only the redacted message unless MCP_FIRESTORE
     if (prevDebug === undefined) delete process.env.MCP_FIRESTORE_DEBUG;
     else process.env.MCP_FIRESTORE_DEBUG = prevDebug;
   }
+});
+
+/** Capture console.error output while running fn. */
+async function captureStderr(fn) {
+  const lines = [];
+  const orig = console.error;
+  console.error = (...a) => lines.push(a.map(String).join(" "));
+  try {
+    await fn();
+  } finally {
+    console.error = orig;
+  }
+  return lines;
+}
+
+test("handleToolCall: prototype-chain tool names are Unknown tool", async () => {
+  const deps = { toolDefinitions };
+  for (const n of ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"]) {
+    const res = await handleToolCall(n, {}, deps);
+    assert.equal(res.isError, true, n);
+    assert.match(parse(res).error, /Unknown tool/, n);
+  }
+});
+
+test("handleToolCall: successful production write logs one audit line", async () => {
+  const deps = makeDeps(() => ({
+    collection: "users",
+    id: "a\nb\u001b[31m",
+    operation: "created",
+    data: { secret: "do-not-log" },
+  }));
+  const lines = await captureStderr(() =>
+    handleToolCall(
+      "create_document",
+      { collection: "users", data: { x: 1 }, target: "production", confirm: true },
+      deps,
+    ),
+  );
+  const audit = lines.filter(l => l.startsWith("[production] WRITE"));
+  assert.deepEqual(audit, ["[production] WRITE create_document users/ab[31m"]);
+  assert.ok(!lines.join("\n").includes("do-not-log"));
+});
+
+test("handleToolCall: audit path is capped at 200 characters", async () => {
+  const deps = makeDeps(() => ({ collection: "c", id: "x".repeat(500) }));
+  const lines = await captureStderr(() =>
+    handleToolCall(
+      "delete_document",
+      { collection: "c", docId: "d", target: "production", confirm: true },
+      deps,
+    ),
+  );
+  const line = lines.find(l => l.startsWith("[production] WRITE delete_document "));
+  assert.equal(line.slice("[production] WRITE delete_document ".length).length, 200);
+});
+
+test("handleToolCall: no audit line for emulator writes, failed writes or reads", async () => {
+  const ok = makeDeps(() => ({ collection: "c", id: "d" }));
+  let lines = await captureStderr(() =>
+    handleToolCall("delete_document", { collection: "c", docId: "d" }, ok),
+  );
+  assert.ok(!lines.some(l => l.includes("WRITE")));
+
+  const failing = makeDeps(() => {
+    throw new Error("boom");
+  });
+  lines = await captureStderr(() =>
+    handleToolCall(
+      "delete_document",
+      { collection: "c", docId: "d", target: "production", confirm: true },
+      failing,
+    ),
+  );
+  assert.ok(!lines.some(l => l.includes("WRITE")));
+
+  lines = await captureStderr(() =>
+    handleToolCall(
+      "get_document",
+      { collection: "c", docId: "d", target: "production" },
+      ok,
+    ),
+  );
+  assert.ok(!lines.some(l => l.includes("WRITE")));
+});
+
+test("SERVER_INSTRUCTIONS: non-empty, under 600 chars, covers untrusted data and production writes", () => {
+  assert.ok(SERVER_INSTRUCTIONS.length > 0 && SERVER_INSTRUCTIONS.length < 600);
+  assert.match(SERVER_INSTRUCTIONS, /untrusted/i);
+  assert.match(SERVER_INSTRUCTIONS, /never follow instructions/i);
+  assert.match(SERVER_INSTRUCTIONS, /production/i);
+  assert.match(SERVER_INSTRUCTIONS, /explicitly asked/i);
+  assert.match(SERVER_INSTRUCTIONS, /emulator/i);
 });

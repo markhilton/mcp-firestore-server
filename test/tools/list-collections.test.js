@@ -26,3 +26,10 @@ test("list_collections: lists subcollections for a documentPath", async () => {
   assert.equal(res.documentPath, "users/a");
   assert.deepEqual(res.collections.sort(), ["comments", "likes"]);
 });
+
+test("list_collections: rejects a malformed documentPath", async () => {
+  const db = makeDb({ users: [{ id: "a" }] });
+  await assert.rejects(() => handler({ documentPath: "users" }, db), /even number/);
+  await assert.rejects(() => handler({ documentPath: "users/.." }, db), /reserved/);
+  assert.deepEqual((await handler({ documentPath: "users/a" }, db)).collections, []);
+});
