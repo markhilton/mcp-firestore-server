@@ -312,3 +312,20 @@ test("redactMessage: secrets straddling the length cap leave no fragment", () =>
 test("redactMessage: email followed by an underscore is still redacted", () => {
   assert.equal(redactMessage("foo@bar.com_x"), "[redacted email]_x");
 });
+
+test("mapError: ALREADY_EXISTS maps only the structured gRPC shapes", () => {
+  const real = Object.assign(new Error("6 ALREADY_EXISTS: Document already exists"), {
+    code: 6,
+  });
+  assert.equal(mapError(real).code, "ALREADY_EXISTS");
+  assert.equal(mapError(new Error("6 ALREADY_EXISTS: x")).code, "ALREADY_EXISTS");
+  assert.equal(mapError(new Error("ALREADY_EXISTS: x")).code, "ALREADY_EXISTS");
+  assert.equal(mapError(new Error("see ALREADY_EXISTS in docs")), null);
+});
+
+test("mapError: a validation error echoing ALREADY_EXISTS gets no code or overwrite hint", () => {
+  const err = new InputValidationError('docId "ALREADY_EXISTS/x" must not contain "/"');
+  assert.equal(mapError(err), null);
+  const coded = Object.assign(new InputValidationError("ALREADY_EXISTS"), { code: 6 });
+  assert.equal(mapError(coded), null);
+});

@@ -172,3 +172,10 @@ test("executeQuery: rejects out-of-range limits", async () => {
     /between 1 and 1000/,
   );
 });
+
+test("applyPagination: rejects an invalid startAfter id", async () => {
+  const db = makeDb({ users: [{ id: "a" }] });
+  const q = db.collection("users");
+  await assert.rejects(() => applyPagination(q, db, "users", "a/b"), /startAfter/);
+  await assert.rejects(() => applyPagination(q, db, "users", "__x__"), /startAfter/);
+});

@@ -1,3 +1,5 @@
+import { validateDocumentPath } from "../helpers/validate.js";
+
 export const definition = {
   name: "list_collections",
   description:
@@ -18,6 +20,7 @@ export async function handler(args, db) {
   let collections;
 
   if (args.documentPath) {
+    validateDocumentPath(args.documentPath);
     const docRef = db.doc(args.documentPath);
     collections = await docRef.listCollections();
   } else {

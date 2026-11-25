@@ -21,3 +21,16 @@ test("get_document: supports subcollection paths", async () => {
   assert.equal(res.exists, true);
   assert.deepEqual(res.data, { title: "Hi" });
 });
+
+test("get_document: rejects an invalid docId before touching Firestore", async () => {
+  const db = makeDb();
+  await assert.rejects(
+    () => handler({ collection: "users", docId: "a/b" }, db),
+    /must not contain "\/"/,
+  );
+  await assert.rejects(
+    () => handler({ collection: "users", docId: ".." }, db),
+    /reserved/,
+  );
+  assert.equal(db.writes.length, 0);
+});

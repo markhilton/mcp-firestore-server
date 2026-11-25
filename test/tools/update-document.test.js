@@ -90,3 +90,16 @@ test("update_document: merge:false allows top-level $delete only", async () => {
     /requires merge:true/,
   );
 });
+
+test("update_document: rejects an invalid docId before touching Firestore", async () => {
+  const db = makeDb();
+  await assert.rejects(
+    () => handler({ collection: "users", docId: "a/b", data: { x: 1 } }, db),
+    /must not contain "\/"/,
+  );
+  await assert.rejects(
+    () => handler({ collection: "users", docId: "..", data: { x: 1 } }, db),
+    /reserved/,
+  );
+  assert.equal(db.writes.length, 0);
+});

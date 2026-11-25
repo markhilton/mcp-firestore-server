@@ -3,6 +3,18 @@ import { getFirestore } from "firebase-admin/firestore";
 import { detectProjectId } from "./config.js";
 import { TARGETS } from "./constants.js";
 
+/**
+ * Loose project ID shape. Only keeps whitespace, control characters and prose out
+ * of the log line and tool description; emulator-only setups may use uppercase
+ * letters or underscores, so this is deliberately wider than GCP's own rules.
+ */
+const PROJECT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,62}$/;
+
+/** True when `projectId` is a plausible project ID (see PROJECT_ID_RE). */
+export function isValidProjectId(projectId) {
+  return typeof projectId === "string" && PROJECT_ID_RE.test(projectId);
+}
+
 let emulatorDb = null;
 let productionDb = null;
 let defaultTarget = null;
@@ -86,7 +98,7 @@ export function initFirebase() {
   availableTargets = [];
   activeEmulatorHost = null;
 
-  const projectId = detectProjectId();
+  const { projectId, source: projectSource } = detectProjectId();
 
   if (!projectId) {
     throw new Error(
@@ -107,9 +119,19 @@ export function initFirebase() {
     );
   }
 
+  if (!isValidProjectId(projectId)) {
+    // Never coerce a non-string: a parsed JSON object can carry its own toString.
+    const shown = (typeof projectId === "string" ? projectId : `<${typeof projectId}>`)
+      .replace(/[^\x20-\x7e]/g, "?")
+      .slice(0, 40);
+    throw new Error(
+      `Invalid Google Cloud project ID "${shown}": expected 1-63 characters of letters, digits, '.', '_', ':' or '-', starting with a letter or digit. Fix GOOGLE_CLOUD_PROJECT / FIREBASE_PROJECT_ID or the .firebaserc / firebase.json project.`,
+    );
+  }
+
   activeProjectId = projectId;
   activeEmulatorHost = emulatorHost || null;
-  console.error(`Project ID: ${projectId}`);
+  console.error(`Project ID: ${projectId} (from ${projectSource})`);
 
   // Initialize emulator target
   if (emulatorHost) {
@@ -126,8 +148,21 @@ export function initFirebase() {
   }
 
   // Resolve default target
-  const envDefault = process.env.MCP_FIRESTORE_DEFAULT_TARGET;
-  if (envDefault && availableTargets.includes(envDefault)) {
+  const envDefault = (process.env.MCP_FIRESTORE_DEFAULT_TARGET || "")
+    .trim()
+    .toLowerCase();
+  if (envDefault) {
+    if (envDefault !== TARGETS.EMULATOR && envDefault !== TARGETS.PRODUCTION) {
+      const shown = envDefault.replace(/[^\x20-\x7e]/g, "?").slice(0, 40);
+      throw new Error(
+        `Invalid MCP_FIRESTORE_DEFAULT_TARGET "${shown}": must be "emulator" or "production". Available targets: ${availableTargets.join(", ")}.`,
+      );
+    }
+    if (!availableTargets.includes(envDefault)) {
+      throw new Error(
+        `MCP_FIRESTORE_DEFAULT_TARGET is "${envDefault}" but that target is not available. Available targets: ${availableTargets.join(", ")}. Configure ${envDefault === TARGETS.EMULATOR ? "FIRESTORE_EMULATOR_HOST" : "GOOGLE_APPLICATION_CREDENTIALS"} or change the default.`,
+      );
+    }
     defaultTarget = envDefault;
   } else if (availableTargets.length === 1) {
     defaultTarget = availableTargets[0];
@@ -138,7 +173,12 @@ export function initFirebase() {
   console.error(`Default target: ${defaultTarget}`);
   console.error(`Available targets: ${availableTargets.join(", ")}`);
 
-  return { projectId, defaultTarget, availableTargets: [...availableTargets] };
+  return {
+    projectId,
+    projectSource,
+    defaultTarget,
+    availableTargets: [...availableTargets],
+  };
 }
 
 /**

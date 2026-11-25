@@ -152,6 +152,18 @@ export function mapError(error) {
 
   if (isAuthError(error)) return { code: "AUTH_EXPIRED", hint: AUTH_HINT };
 
+  // Only the structured gRPC signal counts. Validation messages echo caller input
+  // and must not steer an assistant toward a destructive overwrite.
+  if (
+    !isValidationError(error) &&
+    (error?.code === 6 || /^(?:6 )?ALREADY_EXISTS\b/.test(message))
+  ) {
+    return {
+      code: "ALREADY_EXISTS",
+      hint: "A document with this ID already exists. Use update_document to change specific fields. Only if the user explicitly wants the existing document replaced entirely, ask them first, then retry with overwrite: true (destructive).",
+    };
+  }
+
   if (/descending key scan/i.test(message)) {
     return {
       code: "UNSUPPORTED_DESCENDING_KEY_SCAN",

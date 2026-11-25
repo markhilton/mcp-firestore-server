@@ -18,7 +18,7 @@ export function assertWriteAllowed(target, args) {
     !(Object.hasOwn(args ?? {}, "confirm") && args.confirm === true)
   ) {
     throw new InputValidationError(
-      "Refusing production write: pass confirm:true to write to the production target (target=production).",
+      "Refusing production write: this changes live data on the production target. Ask the user to confirm, then retry with confirm:true.",
     );
   }
 }

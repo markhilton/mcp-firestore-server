@@ -1,6 +1,6 @@
 import { COLLECTION_PROPERTY, OUTPUT_PROPERTIES } from "../helpers/schema.js";
 import { mapDocSnapshot } from "../helpers/query.js";
-import { validateCollectionPath } from "../helpers/validate.js";
+import { validateCollectionPath, validateDocId } from "../helpers/validate.js";
 import {
   compactData,
   fitSingleDoc,
@@ -25,6 +25,7 @@ export const definition = {
 
 export async function handler(args, db) {
   validateCollectionPath(args.collection);
+  validateDocId(args.docId);
   const maxChars = resolveMaxChars(args.maxChars);
   const doc = await db.collection(args.collection).doc(args.docId).get();
   const mapped = mapDocSnapshot(doc);

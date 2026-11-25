@@ -1,7 +1,7 @@
 import { coerceValue } from "./coerce-value.js";
 import { decodeQueryValue } from "./typed-values.js";
 import { finalizeQueryDocs } from "./output.js";
-import { resolveLimit } from "./validate.js";
+import { resolveLimit, validateDocId } from "./validate.js";
 
 /**
  * Valid Firestore where operators.
@@ -51,6 +51,7 @@ export function applyOrderBy(query, args) {
  */
 export async function applyPagination(query, db, collection, startAfterId) {
   if (!startAfterId) return query;
+  validateDocId(startAfterId, "startAfter");
   const startDoc = await db.collection(collection).doc(startAfterId).get();
   if (startDoc.exists) {
     query = query.startAfter(startDoc);

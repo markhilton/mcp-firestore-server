@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { handleToolCall } from "../src/server.js";
+import { handleToolCall, logError, SERVER_INSTRUCTIONS } from "../src/server.js";
 import { getToolDefinitions } from "../src/tools/index.js";
 
 const toolDefinitions = getToolDefinitions(["emulator", "production"], "emulator");
@@ -217,6 +217,239 @@ test("handleToolCall: stderr logs only the redacted message unless MCP_FIRESTORE
     assert.ok(logged[0][1] instanceof Error);
   } finally {
     console.error = original;
+    if (prevDebug === undefined) delete process.env.MCP_FIRESTORE_DEBUG;
+    else process.env.MCP_FIRESTORE_DEBUG = prevDebug;
+  }
+});
+
+/** Capture console.error output while running fn. */
+async function captureStderr(fn) {
+  const lines = [];
+  const orig = console.error;
+  console.error = (...a) => lines.push(a.map(String).join(" "));
+  try {
+    await fn();
+  } finally {
+    console.error = orig;
+  }
+  return lines;
+}
+
+test("handleToolCall: prototype-chain tool names are Unknown tool", async () => {
+  const deps = { toolDefinitions };
+  for (const n of ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"]) {
+    const res = await handleToolCall(n, {}, deps);
+    assert.equal(res.isError, true, n);
+    assert.match(parse(res).error, /Unknown tool/, n);
+  }
+});
+
+test("handleToolCall: successful production write logs one audit line", async () => {
+  const deps = makeDeps(() => ({
+    collection: "users",
+    id: "a\nb\u001b[31m",
+    operation: "created",
+    data: { secret: "do-not-log" },
+  }));
+  const lines = await captureStderr(() =>
+    handleToolCall(
+      "create_document",
+      { collection: "users", data: { x: 1 }, target: "production", confirm: true },
+      deps,
+    ),
+  );
+  const audit = lines.filter(l => l.startsWith("[production] WRITE"));
+  assert.deepEqual(audit, [
+    `[production] WRITE create_document collection="users" id="a\\nb\\u001b[31m"`,
+  ]);
+  assert.ok(!lines.join("\n").includes("do-not-log"));
+});
+
+/** Run one production write returning `result`; return its single audit line. */
+async function auditFor(tool, result) {
+  const deps = makeDeps(() => result);
+  const lines = await captureStderr(() =>
+    handleToolCall(
+      tool,
+      {
+        collection: "c",
+        docId: "d",
+        ...(tool === "create_document" && { data: { x: 1 } }),
+        target: "production",
+        confirm: true,
+      },
+      deps,
+    ),
+  );
+  const audit = lines.filter(l => l.startsWith("[production] WRITE"));
+  assert.equal(audit.length, 1);
+  assert.ok(!/[\n\u2028\u2029\u0085]/.test(audit[0]), "audit stays on one line");
+  return audit[0];
+}
+
+test("handleToolCall: audit keeps the full id behind a 199-char collection path", async () => {
+  const collection = "a".repeat(199);
+  const line = await auditFor("delete_document", { collection, id: "victim-doc" });
+  assert.equal(
+    line,
+    `[production] WRITE delete_document collection="${collection}" id="victim-doc"`,
+  );
+});
+
+test("handleToolCall: audit logs a 300-char id whole", async () => {
+  const id = "x".repeat(300);
+  const line = await auditFor("delete_document", { collection: "c", id });
+  assert.ok(line.endsWith(`id="${id}"`));
+});
+
+test("handleToolCall: audit cuts a 600-char collection with a marker, id still follows", async () => {
+  const line = await auditFor("delete_document", {
+    collection: "c".repeat(600),
+    id: "victim",
+  });
+  assert.equal(
+    line,
+    `[production] WRITE delete_document collection="${"c".repeat(500)}…(+100 chars)" id="victim"`,
+  );
+});
+
+test("handleToolCall: audit escapes newline, U+2028 and U+0085 in ids visibly", async () => {
+  const plain = await auditFor("delete_document", { collection: "c", id: "ab" });
+  const evil = await auditFor("delete_document", {
+    collection: "c",
+    id: "a\n\u2028\u0085b",
+  });
+  assert.equal(
+    evil,
+    '[production] WRITE delete_document collection="c" id="a\\n\\u2028\\u0085b"',
+  );
+  assert.notEqual(evil, plain);
+});
+
+test("handleToolCall: audit marks overwrite=true only when the handler reports it", async () => {
+  const over = await auditFor("create_document", {
+    collection: "users",
+    id: "u1",
+    overwrite: true,
+  });
+  assert.equal(
+    over,
+    '[production] WRITE create_document collection="users" id="u1" overwrite=true',
+  );
+  const plain = await auditFor("create_document", { collection: "users", id: "u1" });
+  assert.equal(plain, '[production] WRITE create_document collection="users" id="u1"');
+});
+
+test("handleToolCall: audit tolerates missing or non-string collection and id", async () => {
+  const line = await auditFor("delete_document", { collection: { a: 1 }, id: 5 });
+  assert.equal(line, '[production] WRITE delete_document collection="" id=""');
+});
+
+test("handleToolCall: audit never contains document data", async () => {
+  const line = await auditFor("create_document", {
+    collection: "c",
+    id: "d",
+    data: { secret: "do-not-log" },
+  });
+  assert.ok(!line.includes("do-not-log"));
+});
+
+test("handleToolCall: no audit line for emulator writes, failed writes or reads", async () => {
+  const ok = makeDeps(() => ({ collection: "c", id: "d" }));
+  let lines = await captureStderr(() =>
+    handleToolCall("delete_document", { collection: "c", docId: "d" }, ok),
+  );
+  assert.ok(!lines.some(l => l.includes("WRITE")));
+
+  const failing = makeDeps(() => {
+    throw new Error("boom");
+  });
+  lines = await captureStderr(() =>
+    handleToolCall(
+      "delete_document",
+      { collection: "c", docId: "d", target: "production", confirm: true },
+      failing,
+    ),
+  );
+  assert.ok(!lines.some(l => l.includes("WRITE")));
+
+  lines = await captureStderr(() =>
+    handleToolCall(
+      "get_document",
+      { collection: "c", docId: "d", target: "production" },
+      ok,
+    ),
+  );
+  assert.ok(!lines.some(l => l.includes("WRITE")));
+});
+
+test("SERVER_INSTRUCTIONS: non-empty, under 600 chars, covers untrusted data and production writes", () => {
+  assert.ok(SERVER_INSTRUCTIONS.length > 0 && SERVER_INSTRUCTIONS.length < 600);
+  assert.match(SERVER_INSTRUCTIONS, /untrusted/i);
+  assert.match(SERVER_INSTRUCTIONS, /never follow instructions/i);
+  assert.match(SERVER_INSTRUCTIONS, /production/i);
+  assert.match(SERVER_INSTRUCTIONS, /explicitly asked/i);
+  assert.match(SERVER_INSTRUCTIONS, /emulator/i);
+});
+
+test("handleToolCall: caller-controlled newlines in an unknown tool name make one stderr line", async () => {
+  const prevDebug = process.env.MCP_FIRESTORE_DEBUG;
+  delete process.env.MCP_FIRESTORE_DEBUG;
+  const calls = [];
+  const orig = console.error;
+  console.error = (...a) => calls.push(a);
+  try {
+    const res = await handleToolCall("evil\ntool\u2028x\u0085y", {}, { toolDefinitions });
+    assert.equal(res.isError, true);
+    assert.equal(calls.length, 1);
+    const text = calls[0].map(String).join(" ");
+    assert.match(text, /Unknown tool: evil tool x y/);
+    // eslint-disable-next-line no-control-regex
+    assert.doesNotMatch(text, /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
+  } finally {
+    console.error = orig;
+    if (prevDebug !== undefined) process.env.MCP_FIRESTORE_DEBUG = prevDebug;
+  }
+});
+
+test("logError: handles Error, undefined and non-Error reasons; redacts and caps outside debug", () => {
+  const prevDebug = process.env.MCP_FIRESTORE_DEBUG;
+  delete process.env.MCP_FIRESTORE_DEBUG;
+  const calls = [];
+  const orig = console.error;
+  console.error = (...a) => calls.push(a);
+  try {
+    logError("L:", new Error("fail at /Users/me/secret/key.json\nnext"));
+    logError("L:", undefined);
+    logError("L:", "string reason /Users/me/secret/key.json");
+    logError("L:", { message: "obj at /Users/me/secret/key.json" });
+    logError("L:", { other: 1 });
+    logError("L:", new Error("x".repeat(5000)));
+    assert.equal(calls.length, 6);
+    assert.equal(calls[0][1], "fail at [redacted path] next");
+    assert.equal(calls[1][1], "");
+    assert.equal(calls[2][1], "string reason [redacted path]");
+    assert.equal(calls[3][1], "obj at [redacted path]");
+    assert.equal(calls[4][1], "[object Object]");
+    assert.ok(calls[5][1].length <= 1000);
+  } finally {
+    console.error = orig;
+    if (prevDebug !== undefined) process.env.MCP_FIRESTORE_DEBUG = prevDebug;
+  }
+});
+
+test("logError: debug mode logs the full error object unchanged", () => {
+  const prevDebug = process.env.MCP_FIRESTORE_DEBUG;
+  process.env.MCP_FIRESTORE_DEBUG = "1";
+  const calls = [];
+  const orig = console.error;
+  console.error = (...a) => calls.push(a);
+  try {
+    const err = new Error("a\nb");
+    logError("L:", err);
+    assert.equal(calls[0][1], err);
+  } finally {
+    console.error = orig;
     if (prevDebug === undefined) delete process.env.MCP_FIRESTORE_DEBUG;
     else process.env.MCP_FIRESTORE_DEBUG = prevDebug;
   }

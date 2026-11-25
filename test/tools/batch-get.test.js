@@ -56,3 +56,16 @@ test("batch_get: fields mask is honoured with dotted paths", async () => {
   );
   assert.deepEqual(res.documents[0].data, { author: { name: "Ada" } });
 });
+
+test("batch_get: rejects an invalid docIds element and names its index", async () => {
+  const db = makeDb({ users: [{ id: "a" }] });
+  await assert.rejects(
+    () => handler({ collection: "users", docIds: ["a", "b/c"] }, db),
+    /docIds\[1\].*must not contain/,
+  );
+  await assert.rejects(
+    () => handler({ collection: "users", docIds: ["a", 5] }, db),
+    /docIds\[1\]/,
+  );
+  assert.equal(db.getAllCalls.length, 0);
+});

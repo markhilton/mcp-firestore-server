@@ -4,7 +4,11 @@ import {
   TYPED_VALUES_DESCRIPTION,
 } from "../helpers/schema.js";
 import { assertWriteAllowed } from "../helpers/guards.js";
-import { validateCollectionPath, assertNonEmptyData } from "../helpers/validate.js";
+import {
+  validateCollectionPath,
+  validateDocId,
+  assertNonEmptyData,
+} from "../helpers/validate.js";
 import { decodeDocumentData, DECODE_MODES } from "../helpers/typed-values.js";
 
 export const definition = {
@@ -34,6 +38,7 @@ export const definition = {
 export async function handler(args, db, target) {
   assertWriteAllowed(target, args);
   validateCollectionPath(args.collection);
+  validateDocId(args.docId);
   assertNonEmptyData(args.data);
 
   const merge = !(Object.hasOwn(args, "merge") && args.merge === false);

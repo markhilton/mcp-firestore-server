@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
-import { startServer } from "./src/server.js";
+import { startServer, logError } from "./src/server.js";
 
 process.on("uncaughtException", error => {
-  console.error("Uncaught Exception:", error);
+  logError("Uncaught Exception:", error);
   process.exit(1);
 });
 
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+process.on("unhandledRejection", reason => {
+  logError("Unhandled Rejection, reason:", reason);
   process.exit(1);
 });
 

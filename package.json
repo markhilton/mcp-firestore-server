@@ -1,12 +1,16 @@
 {
   "name": "@nerd305/mcp-firestore-server",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "description": "MCP server for Firebase Firestore operations",
   "main": "index.js",
   "type": "module",
   "bin": {
     "mcp-firestore-server": "index.js"
   },
+  "files": [
+    "index.js",
+    "src/"
+  ],
   "scripts": {
     "start": "node index.js",
     "test": "node --test",
@@ -28,8 +32,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.15.1",
-    "firebase-admin": "^14.0.0"
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "firebase-admin": "^14.5.1"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -41,7 +45,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "ajv": "^8.20.0",
-    "eslint": "^10.5.0",
-    "prettier": "^3.8.4"
+    "eslint": "^10.15.0",
+    "prettier": "^3.10.1"
   }
 }
