@@ -27,6 +27,18 @@ export function resolveLimit(limit) {
 /** Default maximum number of documents fetchable in a single batch_get. */
 export const DEFAULT_MAX_BATCH = 300;
 
+/** Max collection/document path size in bytes (Firestore's resource-name limit). */
+export const MAX_PATH_BYTES = 6144;
+
+/** Reject an oversized path before any shape check, so it is never echoed back. */
+function checkPathLength(path, label) {
+  if (typeof path === "string" && Buffer.byteLength(path, "utf8") > MAX_PATH_BYTES) {
+    throw new InputValidationError(
+      `Invalid ${label}: longer than ${MAX_PATH_BYTES} bytes.`,
+    );
+  }
+}
+
 /**
  * Validate a Firestore collection path before it reaches the SDK, so callers
  * get a clear error instead of a cryptic Firestore one.
@@ -38,6 +50,7 @@ export const DEFAULT_MAX_BATCH = 300;
  * @throws {InputValidationError} When the path is missing, blank, or malformed.
  */
 export function validateCollectionPath(path) {
+  checkPathLength(path, "collection path");
   if (typeof path !== "string" || path.trim() === "") {
     throw new InputValidationError(
       "Invalid collection path: expected a non-empty string.",
@@ -110,6 +123,7 @@ export function validateDocId(id, label = "docId") {
  * @throws {InputValidationError} When the path is malformed.
  */
 export function validateDocumentPath(path) {
+  checkPathLength(path, "document path");
   if (typeof path !== "string" || path.trim() === "") {
     throw new InputValidationError("Invalid document path: expected a non-empty string.");
   }

@@ -23,11 +23,25 @@ import { findSchemaViolations, SEVERITY } from "./lib/schema-compliance.js";
 // combination of targets, default target and read-only mode.
 const BOTH = ["emulator", "production"];
 const PID = "demo-test";
-// Every variant passes a projectId, as the server always does, except
-// "emulator only", which covers the omitted-projectId branch.
+const SRC = ".firebaserc";
+// Every variant passes a projectId and projectSource, as the server always does,
+// except: "emulator only" (neither, the omitted branch) and "production only"
+// (projectId without projectSource, the missing-source branch).
 const VARIANTS = [
-  { label: "both, default emulator", targets: BOTH, def: "emulator", projectId: PID },
-  { label: "both, default production", targets: BOTH, def: "production", projectId: PID },
+  {
+    label: "both, default emulator",
+    targets: BOTH,
+    def: "emulator",
+    projectId: PID,
+    projectSource: SRC,
+  },
+  {
+    label: "both, default production",
+    targets: BOTH,
+    def: "production",
+    projectId: PID,
+    projectSource: SRC,
+  },
   { label: "emulator only", targets: ["emulator"], def: "emulator" },
   {
     label: "production only",
@@ -35,13 +49,21 @@ const VARIANTS = [
     def: "production",
     projectId: PID,
   },
-  { label: "readonly=1", targets: BOTH, def: "emulator", readonly: "1", projectId: PID },
+  {
+    label: "readonly=1",
+    targets: BOTH,
+    def: "emulator",
+    readonly: "1",
+    projectId: PID,
+    projectSource: SRC,
+  },
   {
     label: "readonly=production",
     targets: BOTH,
     def: "emulator",
     readonly: "production",
     projectId: PID,
+    projectSource: SRC,
   },
 ];
 
@@ -50,7 +72,7 @@ function variantDefs(v) {
   if (v.readonly) process.env.MCP_FIRESTORE_READONLY = v.readonly;
   else delete process.env.MCP_FIRESTORE_READONLY;
   try {
-    return getToolDefinitions(v.targets, v.def, v.projectId);
+    return getToolDefinitions(v.targets, v.def, v.projectId, v.projectSource);
   } finally {
     if (prev === undefined) delete process.env.MCP_FIRESTORE_READONLY;
     else process.env.MCP_FIRESTORE_READONLY = prev;

@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { Buffer } from "node:buffer";
 import assert from "node:assert/strict";
 import {
   validateCollectionPath,
@@ -8,6 +9,7 @@ import {
   assertBatchSize,
   DEFAULT_MAX_BATCH,
   resolveLimit,
+  MAX_PATH_BYTES,
 } from "../../src/helpers/validate.js";
 
 test("validateCollectionPath: accepts simple and nested collection paths", () => {
@@ -101,4 +103,61 @@ test("validateDocumentPath: rejects odd, blank, sliced, empty-segment and reserv
   assert.throws(() => validateDocumentPath("users/.."), /reserved/);
   assert.throws(() => validateDocumentPath("users/__a__"), /reserved/);
   assert.throws(() => validateDocumentPath(`users/${"a".repeat(1501)}`), /1500 bytes/);
+});
+
+/** Valid document path of exactly `bytes` bytes: 6 segments of at most 1500 bytes. */
+function docPathOfBytes(bytes) {
+  const total = bytes - 5; // five slashes
+  const base = Math.floor(total / 6);
+  const extra = total - base * 6;
+  return Array.from({ length: 6 }, (_, i) => "a".repeat(base + (i < extra ? 1 : 0))).join(
+    "/",
+  );
+}
+
+test("MAX_PATH_BYTES is Firestore's 6144-byte resource-name limit", () => {
+  assert.equal(MAX_PATH_BYTES, 6144);
+});
+
+test("validateCollectionPath: byte cap is 6144, checked before shape, never echoes the path", () => {
+  assert.doesNotThrow(() => validateCollectionPath("a".repeat(MAX_PATH_BYTES)));
+  assert.throws(
+    () => validateCollectionPath("a".repeat(MAX_PATH_BYTES + 1)),
+    /Invalid collection path: longer than 6144 bytes\./,
+  );
+  // Under 6144 characters but over 6144 bytes.
+  const multi = "é".repeat(3100);
+  assert.ok(multi.length < MAX_PATH_BYTES);
+  assert.throws(() => validateCollectionPath(multi), /longer than 6144 bytes/);
+  // Malformed and oversized: the length error wins and carries no path text.
+  const bad = "/zzz" + "a".repeat(MAX_PATH_BYTES);
+  assert.throws(
+    () => validateCollectionPath(bad),
+    err => {
+      assert.match(err.message, /longer than 6144 bytes/);
+      assert.ok(!err.message.includes("zzz"));
+      return true;
+    },
+  );
+});
+
+test("validateDocumentPath: byte cap is 6144, checked before shape, never echoes the path", () => {
+  assert.equal(Buffer.byteLength(docPathOfBytes(MAX_PATH_BYTES)), MAX_PATH_BYTES);
+  assert.doesNotThrow(() => validateDocumentPath(docPathOfBytes(MAX_PATH_BYTES)));
+  assert.throws(
+    () => validateDocumentPath(docPathOfBytes(MAX_PATH_BYTES + 1)),
+    /Invalid document path: longer than 6144 bytes\./,
+  );
+  const multi = Array.from({ length: 6 }, () => "é".repeat(520)).join("/");
+  assert.ok(multi.length < MAX_PATH_BYTES && Buffer.byteLength(multi) > MAX_PATH_BYTES);
+  assert.throws(() => validateDocumentPath(multi), /longer than 6144 bytes/);
+  const bad = "/zzz" + "a".repeat(MAX_PATH_BYTES);
+  assert.throws(
+    () => validateDocumentPath(bad),
+    err => {
+      assert.match(err.message, /longer than 6144 bytes/);
+      assert.ok(!err.message.includes("zzz"));
+      return true;
+    },
+  );
 });
