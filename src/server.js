@@ -55,13 +55,34 @@ export function logError(label, error) {
   console.error(label, text);
 }
 
-/** Build the "[production] WRITE tool collection/id" audit line (no document data). */
+/** Longest collection path written to the audit line before it is cut. */
+const MAX_AUDIT_COLLECTION = 500;
+
+/**
+ * JSON-quote a value for a one-line log field. JSON.stringify escapes C0 controls,
+ * quotes and backslashes; U+007F-U+009F, U+2028 and U+2029 are escaped here.
+ */
+function quoteField(value) {
+  return JSON.stringify(value).replace(
+    /[\u007f-\u009f\u2028\u2029]/g,
+    c => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
+/**
+ * Build the "[production] WRITE tool collection=... id=..." audit line (no document
+ * data). The ID is logged in full (validateDocId bounds it); only the collection is
+ * capped, with a visible marker. Both fields are JSON-quoted so they stay on one line.
+ */
 function auditLine(name, result) {
-  const path = `${result?.collection ?? ""}/${result?.id ?? ""}`
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, "")
-    .slice(0, 200);
-  return `[production] WRITE ${name} ${path}`;
+  const collection = typeof result?.collection === "string" ? result.collection : "";
+  const id = typeof result?.id === "string" ? result.id : "";
+  const shownCollection =
+    collection.length > MAX_AUDIT_COLLECTION
+      ? `${collection.slice(0, MAX_AUDIT_COLLECTION)}…(+${collection.length - MAX_AUDIT_COLLECTION} chars)`
+      : collection;
+  const overwrite = result?.overwrite === true ? " overwrite=true" : "";
+  return `[production] WRITE ${name} collection=${quoteField(shownCollection)} id=${quoteField(id)}${overwrite}`;
 }
 
 /** Connection test timeout in milliseconds. */
@@ -174,7 +195,7 @@ export async function startServer() {
     console.error("Starting Firestore MCP Server...");
 
     // Initialize Firebase with dual-endpoint support
-    const { defaultTarget, availableTargets, projectId } = initFirebase();
+    const { defaultTarget, availableTargets, projectId, projectSource } = initFirebase();
 
     const readOnlyWarning = getReadOnlyWarning();
     if (readOnlyWarning) console.error(readOnlyWarning);
@@ -201,6 +222,7 @@ export async function startServer() {
       availableTargets,
       defaultTarget,
       projectId,
+      projectSource,
     );
 
     const server = new Server(

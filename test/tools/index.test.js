@@ -148,7 +148,17 @@ test("getToolDefinitions: target description names the project when given", () =
   const withProject = getToolDefinitions(["emulator"], "emulator", "my-project");
   assert.equal(
     withProject[0].inputSchema.properties.target.description,
-    'Firestore target endpoint (default: "emulator"). Project: my-project.',
+    'Firestore target endpoint (default: "emulator"). Project ID (data): "my-project".',
+  );
+  const withSource = getToolDefinitions(
+    ["emulator"],
+    "emulator",
+    "my-project",
+    ".firebaserc",
+  );
+  assert.equal(
+    withSource[0].inputSchema.properties.target.description,
+    'Firestore target endpoint (default: "emulator"). Project ID (data, from .firebaserc): "my-project".',
   );
   const without = getToolDefinitions(["emulator"], "emulator");
   assert.equal(

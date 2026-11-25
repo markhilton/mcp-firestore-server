@@ -297,3 +297,9 @@ test("project id: object with a toString key gives the designed error, nothing l
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("initFirebase: returns the fixed project source label", async () => {
+  await withEnv(BOTH, async () => {
+    assert.equal(initFirebase().projectSource, "GOOGLE_CLOUD_PROJECT");
+  });
+});

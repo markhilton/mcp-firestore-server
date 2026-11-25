@@ -95,8 +95,15 @@ export function getReadOnlyWarning() {
 /**
  * Get tool definitions with the `target` parameter injected into each tool.
  * Write tools are omitted when MCP_FIRESTORE_READONLY is "1"/"true"/"all".
+ * The project ID is untrusted (it can come from a repo's .firebaserc), so it is shown
+ * as quoted data with its fixed source label, never as free text.
  */
-export function getToolDefinitions(availableTargets, defaultTarget, projectId) {
+export function getToolDefinitions(
+  availableTargets,
+  defaultTarget,
+  projectId,
+  projectSource,
+) {
   const hideWrites = getReadOnlyMode() === "all";
   return tools
     .filter(tool => !(hideWrites && WRITE_TOOLS.includes(tool.definition.name)))
@@ -111,7 +118,9 @@ export function getToolDefinitions(availableTargets, defaultTarget, projectId) {
             type: "string",
             enum: availableTargets,
             description: `Firestore target endpoint (default: "${defaultTarget}").${
-              projectId ? ` Project: ${projectId}.` : ""
+              projectId
+                ? ` Project ID (data${projectSource ? `, from ${projectSource}` : ""}): ${JSON.stringify(projectId)}.`
+                : ""
             }`,
           },
         },

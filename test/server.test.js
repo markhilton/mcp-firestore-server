@@ -259,21 +259,99 @@ test("handleToolCall: successful production write logs one audit line", async ()
     ),
   );
   const audit = lines.filter(l => l.startsWith("[production] WRITE"));
-  assert.deepEqual(audit, ["[production] WRITE create_document users/ab[31m"]);
+  assert.deepEqual(audit, [
+    `[production] WRITE create_document collection="users" id="a\\nb\\u001b[31m"`,
+  ]);
   assert.ok(!lines.join("\n").includes("do-not-log"));
 });
 
-test("handleToolCall: audit path is capped at 200 characters", async () => {
-  const deps = makeDeps(() => ({ collection: "c", id: "x".repeat(500) }));
+/** Run one production write returning `result`; return its single audit line. */
+async function auditFor(tool, result) {
+  const deps = makeDeps(() => result);
   const lines = await captureStderr(() =>
     handleToolCall(
-      "delete_document",
-      { collection: "c", docId: "d", target: "production", confirm: true },
+      tool,
+      {
+        collection: "c",
+        docId: "d",
+        ...(tool === "create_document" && { data: { x: 1 } }),
+        target: "production",
+        confirm: true,
+      },
       deps,
     ),
   );
-  const line = lines.find(l => l.startsWith("[production] WRITE delete_document "));
-  assert.equal(line.slice("[production] WRITE delete_document ".length).length, 200);
+  const audit = lines.filter(l => l.startsWith("[production] WRITE"));
+  assert.equal(audit.length, 1);
+  assert.ok(!/[\n\u2028\u2029\u0085]/.test(audit[0]), "audit stays on one line");
+  return audit[0];
+}
+
+test("handleToolCall: audit keeps the full id behind a 199-char collection path", async () => {
+  const collection = "a".repeat(199);
+  const line = await auditFor("delete_document", { collection, id: "victim-doc" });
+  assert.equal(
+    line,
+    `[production] WRITE delete_document collection="${collection}" id="victim-doc"`,
+  );
+});
+
+test("handleToolCall: audit logs a 300-char id whole", async () => {
+  const id = "x".repeat(300);
+  const line = await auditFor("delete_document", { collection: "c", id });
+  assert.ok(line.endsWith(`id="${id}"`));
+});
+
+test("handleToolCall: audit cuts a 600-char collection with a marker, id still follows", async () => {
+  const line = await auditFor("delete_document", {
+    collection: "c".repeat(600),
+    id: "victim",
+  });
+  assert.equal(
+    line,
+    `[production] WRITE delete_document collection="${"c".repeat(500)}…(+100 chars)" id="victim"`,
+  );
+});
+
+test("handleToolCall: audit escapes newline, U+2028 and U+0085 in ids visibly", async () => {
+  const plain = await auditFor("delete_document", { collection: "c", id: "ab" });
+  const evil = await auditFor("delete_document", {
+    collection: "c",
+    id: "a\n\u2028\u0085b",
+  });
+  assert.equal(
+    evil,
+    '[production] WRITE delete_document collection="c" id="a\\n\\u2028\\u0085b"',
+  );
+  assert.notEqual(evil, plain);
+});
+
+test("handleToolCall: audit marks overwrite=true only when the handler reports it", async () => {
+  const over = await auditFor("create_document", {
+    collection: "users",
+    id: "u1",
+    overwrite: true,
+  });
+  assert.equal(
+    over,
+    '[production] WRITE create_document collection="users" id="u1" overwrite=true',
+  );
+  const plain = await auditFor("create_document", { collection: "users", id: "u1" });
+  assert.equal(plain, '[production] WRITE create_document collection="users" id="u1"');
+});
+
+test("handleToolCall: audit tolerates missing or non-string collection and id", async () => {
+  const line = await auditFor("delete_document", { collection: { a: 1 }, id: 5 });
+  assert.equal(line, '[production] WRITE delete_document collection="" id=""');
+});
+
+test("handleToolCall: audit never contains document data", async () => {
+  const line = await auditFor("create_document", {
+    collection: "c",
+    id: "d",
+    data: { secret: "do-not-log" },
+  });
+  assert.ok(!line.includes("do-not-log"));
 });
 
 test("handleToolCall: no audit line for emulator writes, failed writes or reads", async () => {

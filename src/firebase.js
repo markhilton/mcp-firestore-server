@@ -173,7 +173,12 @@ export function initFirebase() {
   console.error(`Default target: ${defaultTarget}`);
   console.error(`Available targets: ${availableTargets.join(", ")}`);
 
-  return { projectId, defaultTarget, availableTargets: [...availableTargets] };
+  return {
+    projectId,
+    projectSource,
+    defaultTarget,
+    availableTargets: [...availableTargets],
+  };
 }
 
 /**
